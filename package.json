@@ -1,0 +1,42 @@
+{
+  "name": "linkedin-job-scraper",
+  "version": "1.0.0",
+  "description": "LinkedIn job scraper + tracker + CV generator",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "prisma generate --schema=tracker/prisma/schema.prisma",
+    "start": "node index.js",
+    "scrape": "node index.js --run-now",
+    "test-scrape": "node index.js --test",
+    "tracker:dev": "next dev tracker",
+    "tracker:build": "next build tracker",
+    "tracker:start": "next start tracker",
+    "db:generate": "prisma generate --schema=tracker/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --name init --schema=tracker/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=tracker/prisma/schema.prisma",
+    "deploy": "rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'tracker/.next' --exclude 'data/' --exclude 'tracker/prisma/dev.db' --exclude 'logs/' . root@85.9.201.105:/opt/linkedin-job-scraper/ && ssh root@85.9.201.105 'cd /opt/linkedin-job-scraper && rm -rf tracker/node_modules && npm install && DATABASE_URL=file:./tracker/prisma/dev.db npx prisma migrate deploy --schema=tracker/prisma/schema.prisma && npm run tracker:build && pm2 reload all'"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.15.0",
+    "bcryptjs": "^3.0.3",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.4.5",
+    "jose": "^6.2.2",
+    "next": "^14.2.5",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.13",
+    "playwright": "^1.58.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "prisma": "^5.15.0",
+    "typescript": "^5.5.3"
+  }
+}

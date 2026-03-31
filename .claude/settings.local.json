@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh:*)",
+      "Bash(rsync:*)",
+      "Bash(python3:*)",
+      "Bash(docker compose:*)",
+      "Bash(npm install:*)",
+      "Bash(grep -E \"^\\(next|react|@prisma|prisma|typescript\\)$\")",
+      "Bash(node -e \"require\\(''./node_modules/next/package.json''\\); console.log\\(''next ok''\\)\")",
+      "Bash(node -e \"require\\(''./node_modules/@prisma/client''\\); console.log\\(''prisma ok''\\)\")",
+      "Bash(npx prisma:*)",
+      "Bash(DATABASE_URL=\"file:./tracker/prisma/dev.db\" npx prisma migrate dev --name add_cv_html --schema=tracker/prisma/schema.prisma 2>&1)",
+      "Bash(DATABASE_URL=\"file:./tracker/prisma/dev.db\" npx prisma migrate dev --name add_attachment --schema=tracker/prisma/schema.prisma 2>&1)",
+      "Bash(DATABASE_URL=\"file:./tracker/prisma/dev.db\" npx prisma migrate dev --name add_description --schema=tracker/prisma/schema.prisma 2>&1)",
+      "Bash(DATABASE_URL=file:./tracker/prisma/dev.db npx prisma migrate dev --name add_users --schema=tracker/prisma/schema.prisma 2>&1)",
+      "Bash(npx next:*)",
+      "Bash(node:*)",
+      "Bash(DATABASE_URL=file:./tracker/prisma/dev.db node -e \"\nconst { PrismaClient } = require\\('@prisma/client'\\)\nconst bcrypt = require\\('bcryptjs'\\)\nconst prisma = new PrismaClient\\(\\)\nasync function main\\(\\) {\n  const users = await prisma.user.findMany\\({ select: { id: true, username: true, role: true } }\\)\n  console.log\\('Current users:', JSON.stringify\\(users, null, 2\\)\\)\n}\nmain\\(\\).finally\\(\\(\\) => prisma.\\\\$disconnect\\(\\)\\)\n\" 2>&1)",
+      "Bash(DATABASE_URL=file:./tracker/prisma/dev.db node -e \"\nconst { PrismaClient } = require\\('@prisma/client'\\)\nconst bcrypt = require\\('bcryptjs'\\)\nconst prisma = new PrismaClient\\(\\)\nasync function main\\(\\) {\n  const hash = await bcrypt.hash\\('newpassword123', 12\\)\n  const user = await prisma.user.update\\({\n    where: { username: 'parseradmin' },\n    data: { password: hash },\n    select: { username: true, role: true }\n  }\\)\n  console.log\\('Password reset for:', user.username\\)\n}\nmain\\(\\).finally\\(\\(\\) => prisma.\\\\$disconnect\\(\\)\\)\n\" 2>&1)",
+      "Bash(DATABASE_URL=file:./tracker/prisma/dev.db node -e \"\nconst { PrismaClient } = require\\('@prisma/client'\\)\nconst prisma = new PrismaClient\\(\\)\nprisma.user.deleteMany\\(\\).then\\(r => console.log\\('Deleted:', r.count, 'users'\\)\\).finally\\(\\(\\) => prisma.\\\\$disconnect\\(\\)\\)\n\" 2>&1)"
+    ]
+  }
+}

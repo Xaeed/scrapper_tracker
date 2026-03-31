@@ -1,0 +1,132 @@
+{
+  "name": "Tailored CV Generator - HTML Source + Claude + Save to Disk",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-description",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst jobDescription = (body.job_description || '').toString().trim();\nconst profile = (body.profile || 'devops').toString().trim().toLowerCase();\nconst customPrompt = (body.custom_prompt || '').toString().trim();\n\nif (!jobDescription) {\n  throw new Error('job_description is required in the request body');\n}\nif (!['devops', 'backend'].includes(profile)) {\n  throw new Error(\"profile must be either 'devops' or 'backend'\");\n}\n\nconst cvPathMap = {\n  devops: '/home/node/.n8n-files/cv_devops_v2.html',\n  backend: '/home/node/.n8n-files/cv_backend_v2.html'\n};\n\nconst formatPart = (n) => String(n).padStart(2, '0');\nconst now = new Date();\nconst timestamp = `${now.getFullYear()}-${formatPart(now.getMonth()+1)}-${formatPart(now.getDate())}_${formatPart(now.getHours())}-${formatPart(now.getMinutes())}-${formatPart(now.getSeconds())}`;\n\nconst outputFileName = `cv-${profile}-${timestamp}.html`;\nconst outputFilePath = `/home/node/.n8n-files/generated/${outputFileName}`;\n\nreturn [{\n  json: {\n    profile,\n    job_description: jobDescription,\n    custom_prompt: customPrompt,\n    source_cv_path: cvPathMap[profile],\n    output_file_name: outputFileName,\n    output_file_path: outputFilePath,\n    requested_at: now.toISOString()\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Validate + Select CV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst cvPath = $json.source_cv_path;\n\nif (!fs.existsSync(cvPath)) {\n  throw new Error(`CV file not found at path: ${cvPath}`);\n}\n\nconst html = fs.readFileSync(cvPath, 'utf8');\n\nif (!html || !html.trim()) {\n  throw new Error('CV file is empty');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    base_cv_html: html\n  }\n}];"
+      },
+      "id": "3",
+      "name": "Read CV HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $json.profile;\nconst jobDescription = $json.job_description;\nconst baseCvHtml = $json.base_cv_html;\nconst customPrompt = $json.custom_prompt || '';\n\nlet prompt;\nif (customPrompt) {\n  // Use the user's custom prompt — append job description and base CV automatically\n  prompt = `${customPrompt}\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n} else {\n  // Default ATS-optimisation prompt\n  prompt = `You are an expert CV writer and ATS optimization specialist.\\n\\nYou will be given a candidate's existing CV in HTML format and a job description. Your task is to produce a tailored version of the CV that achieves 90%+ ATS compatibility score for the given job description.\\n\\nSTRICT RULES:\\n- Output ONLY the complete, valid HTML document. No explanations, no markdown fences, no commentary.\\n- Preserve the EXACT same HTML structure, CSS styles, class names, and visual layout as the original CV.\\n- Do NOT add or remove any HTML sections, CSS rules, or structural elements.\\n- Only modify text content (job titles, summaries, skill lists, bullet points, descriptions) to better match the job description.\\n- Do NOT invent experience, certifications, education, companies, dates, or projects that are not in the original CV.\\n- Rephrase and reorder existing content to highlight relevance to the job description.\\n- Integrate ATS-critical keywords from the job description ONLY where they genuinely match existing experience.\\n- Place the most relevant experience and skills first.\\n- Keep all contact details, name, and dates exactly as in the original.\\n- The output must be a single complete HTML file that renders identically in structure to the original.\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    anthropic_model: 'claude-sonnet-4-6',\n    anthropic_prompt: prompt\n  }\n}];"
+      },
+      "id": "4",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1020, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.anthropic_model, max_tokens: 8000, messages: [{ role: 'user', content: $json.anthropic_prompt }] }) }}",
+        "options": {}
+      },
+      "id": "5",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1280, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Validate + Select CV').item.json;\nconst content = $json.content || [];\nconst generatedCv = content\n  .filter(part => part.type === 'text')\n  .map(part => part.text)\n  .join('\\n')\n  .trim();\n\nif (!generatedCv) {\n  throw new Error('Claude returned an empty CV');\n}\n\nconst cleanedCv = generatedCv\n  .replace(/^```html\\s*/i, '')\n  .replace(/^```\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nreturn [{\n  json: {\n    profile: meta.profile,\n    requested_at: meta.requested_at,\n    job_description: meta.job_description,\n    source_cv_path: meta.source_cv_path,\n    output_file_name: meta.output_file_name,\n    output_file_path: meta.output_file_path,\n    generated_cv_html: cleanedCv\n  }\n}];"
+      },
+      "id": "6",
+      "name": "Extract Generated CV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst html = $json.generated_cv_html;\nconst filePath = $json.output_file_path;\n\nif (!html) throw new Error('generated_cv_html is empty');\nif (!filePath) throw new Error('output_file_path is missing');\n\nconst dir = path.dirname(filePath);\nif (!fs.existsSync(dir)) {\n  fs.mkdirSync(dir, { recursive: true });\n}\n\nfs.writeFileSync(filePath, html, 'utf8');\n\nreturn [{ json: { ...$json } }];"
+      },
+      "id": "7",
+      "name": "Write CV to Disk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, profile: $json.profile, requested_at: $json.requested_at, saved_file: $json.output_file_path, file_name: $json.output_file_name, cv_html: $json.generated_cv_html } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "8",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2060, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate + Select CV", "type": "main", "index": 0 }]]
+    },
+    "Validate + Select CV": {
+      "main": [[{ "node": "Read CV HTML", "type": "main", "index": 0 }]]
+    },
+    "Read CV HTML": {
+      "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Claude Prompt": {
+      "main": [[{ "node": "Claude API", "type": "main", "index": 0 }]]
+    },
+    "Claude API": {
+      "main": [[{ "node": "Extract Generated CV", "type": "main", "index": 0 }]]
+    },
+    "Extract Generated CV": {
+      "main": [[{ "node": "Write CV to Disk", "type": "main", "index": 0 }]]
+    },
+    "Write CV to Disk": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

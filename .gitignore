@@ -1,0 +1,116 @@
+#######################################
+# Node / package managers
+#######################################
+node_modules/
+jspm_packages/
+.pnpm-store
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+#######################################
+# Environment variables
+#######################################
+.env
+.env.*
+!.env.example
+
+#######################################
+# Logs
+#######################################
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+#######################################
+# Runtime / system
+#######################################
+pids/
+*.pid
+*.pid.lock
+.DS_Store
+Thumbs.db
+
+#######################################
+# Scraped data
+#######################################
+data/jobs.json
+data/
+
+#######################################
+# Next.js (tracker/)
+#######################################
+tracker/.next/
+tracker/out/
+tracker/.vercel
+tracker/*.tsbuildinfo
+
+#######################################
+# Database (SQLite)
+#######################################
+tracker/prisma/dev.db
+tracker/prisma/dev.db-journal
+tracker/prisma/*.db
+tracker/prisma/*.db-journal
+
+#######################################
+# n8n — docker-compose has API keys
+#######################################
+n8nWorkflows/errors.txt
+n8nWorkflows/.env.n8n
+.n8n/
+n8n_data/
+
+#######################################
+# CV / document files (personal)
+#######################################
+*.pdf
+*.docx
+*.doc
+*.odt
+*cv*.html
+*CV*.html
+
+#######################################
+# Build / coverage
+#######################################
+build/
+dist/
+coverage/
+.nyc_output
+
+#######################################
+# Caches
+#######################################
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+#######################################
+# IDEs / Editors
+#######################################
+.vscode/
+.idea/
+*.swp
+*.swo
+
+#######################################
+# Temp / archives
+#######################################
+.tmp/
+temp/
+*.tgz
+*.zip
+*.tar.gz
+node_modules/
+.next/
+node_modules/
+dist/
+build/

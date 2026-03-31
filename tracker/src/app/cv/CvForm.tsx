@@ -1,0 +1,284 @@
+'use client'
+
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+
+interface Props {
+  title?: string
+  company?: string
+  jobId?: string
+}
+
+interface CvResult {
+  success: boolean
+  profile: string
+  file_name: string
+  cv_html: string
+  requested_at: string
+}
+
+export default function CvForm({ title, company, jobId }: Props) {
+  const [profile, setProfile] = useState<'devops' | 'backend'>('devops')
+  const [description, setDescription] = useState('')
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [loadingDescription, setLoadingDescription] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Auto-fetch job description when opened from a job page
+  useEffect(() => {
+    if (!jobId) return
+    setLoadingDescription(true)
+    fetch(`/api/jobs/${jobId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.description) setDescription(data.description)
+      })
+      .finally(() => setLoadingDescription(false))
+  }, [jobId])
+  const [error, setError] = useState<string | null>(null)
+  const [saveWarning, setSaveWarning] = useState<string | null>(null)
+  const [result, setResult] = useState<CvResult | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!description.trim()) return
+    setLoading(true)
+    setError(null)
+    setSaveWarning(null)
+    setResult(null)
+    setSaved(false)
+
+    try {
+      const res = await fetch('/api/cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_description: description,
+          profile,
+          ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
+        }),
+      })
+      const text = await res.text()
+      let parsed: unknown
+      try {
+        parsed = text ? JSON.parse(text) : null
+      } catch {
+        setError(
+          res.ok
+            ? 'Invalid response from server (not JSON).'
+            : `Request failed (${res.status}). The server did not return JSON.`
+        )
+        return
+      }
+      if (!res.ok) {
+        const msg =
+          parsed && typeof parsed === 'object' && parsed !== null && 'error' in parsed
+            ? String((parsed as { error: unknown }).error)
+            : `Request failed (${res.status})`
+        setError(msg || 'Something went wrong')
+        return
+      }
+
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setError(
+          'CV service returned an invalid payload (expected a JSON object with cv_html). Check the n8n workflow “Respond to Webhook” output.'
+        )
+        return
+      }
+
+      const data = parsed as CvResult & { error?: string }
+      if (typeof data.cv_html !== 'string' || !data.cv_html.trim()) {
+        setError(
+          'CV service did not return HTML (cv_html). Ensure the n8n workflow returns the same field names the app expects (cv_html, profile, file_name, …).'
+        )
+        return
+      }
+
+      setResult(data)
+
+      // Auto-save CV to the job (separate from /api/cv — failures must not look like "network" on generate)
+      if (jobId) {
+        try {
+          const patchRes = await fetch(`/api/jobs/${jobId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cvHtml: data.cv_html }),
+          })
+          const patchText = await patchRes.text()
+          let patchJson: { error?: string } = {}
+          try {
+            patchJson = patchText ? JSON.parse(patchText) : {}
+          } catch {
+            /* ignore */
+          }
+          if (patchRes.ok) {
+            setSaved(true)
+          } else {
+            setSaveWarning(
+              patchJson.error ||
+                `Could not save CV to this job (HTTP ${patchRes.status}). You can still download it below.`
+            )
+          }
+        } catch (patchErr) {
+          const hint =
+            patchErr instanceof TypeError
+              ? ' (connection problem — check proxy/body limits if this is a remote server)'
+              : ''
+          setSaveWarning(`Could not save CV to the job${hint}. You can still download it below.`)
+        }
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      const isFetchFailure =
+        (err instanceof TypeError &&
+          /failed to fetch|load failed|fetch|network|aborted/i.test(detail)) ||
+        (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError')
+      setError(
+        isFetchFailure
+          ? `Could not complete the request to generate a CV (${detail}). If the tracker is running, a reverse proxy may be closing long requests — increase timeout for /api/cv, or ensure n8n is reachable from the server.`
+          : `Something went wrong: ${detail}`
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function downloadCv() {
+    if (!result) return
+    const blob = new Blob([result.cv_html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = result.file_name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <>
+      <div className="top-bar">
+        {jobId && <Link href={`/jobs/${jobId}`} className="btn">← Back to Job</Link>}
+        <h1 style={{ margin: 0 }}>Create CV</h1>
+      </div>
+
+      {(title || company) && (
+        <div className="card" style={{ marginBottom: 20, background: '#eff6ff', borderColor: '#bfdbfe' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 2 }}>Generating CV for:</p>
+          <p style={{ fontWeight: 600 }}>{title}{company ? ` · ${company}` : ''}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>CV Profile</label>
+            <select
+              value={profile}
+              onChange={e => setProfile(e.target.value as 'devops' | 'backend')}
+              style={{ maxWidth: 200 }}
+            >
+              <option value="devops">DevOps</option>
+              <option value="backend">Backend</option>
+            </select>
+          </div>
+
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+              Job Description{' '}
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                {loadingDescription ? '(loading from job…)' : '(paste from LinkedIn or saved from job page)'}
+              </span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Paste the full job description here…"
+              required
+              style={{
+                width: '100%',
+                minHeight: 300,
+                resize: 'vertical',
+                padding: '10px 12px',
+                fontSize: 13,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                fontFamily: 'inherit',
+                lineHeight: 1.6,
+              }}
+            />
+          </div>
+
+          <div className="field">
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+              Custom Prompt{' '}
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — overrides the predefined CV tailoring prompt)</span>
+            </label>
+            <textarea
+              value={customPrompt}
+              onChange={e => setCustomPrompt(e.target.value)}
+              placeholder="Leave empty to use the default ATS-optimisation prompt. If filled, your prompt replaces it — the job description and base CV HTML are still appended automatically."
+              style={{
+                width: '100%',
+                minHeight: 120,
+                resize: 'vertical',
+                padding: '10px 12px',
+                fontSize: 13,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                fontFamily: 'inherit',
+                lineHeight: 1.6,
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="btn primary"
+          disabled={loading || !description.trim()}
+          style={{ minWidth: 140, justifyContent: 'center' }}
+        >
+          {loading ? 'Generating…' : 'Generate CV'}
+        </button>
+      </form>
+
+      {error && (
+        <div className="alert alert-error" style={{ marginTop: 20 }}>
+          {error}
+        </div>
+      )}
+
+      {saveWarning && (
+        <div className="alert" style={{ marginTop: 20, background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
+          {saveWarning}
+        </div>
+      )}
+
+      {result && (
+        <div className="card" style={{ marginTop: 24, borderColor: '#bbf7d0', background: '#f0fdf4' }}>
+          <h2 style={{ color: '#166534', marginBottom: 8 }}>CV Generated Successfully</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+            Profile: <strong>{result.profile}</strong> · File: <strong>{result.file_name}</strong>
+            {saved && <span style={{ marginLeft: 12, color: '#166534' }}>· Saved to job ✓</span>}
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn primary" onClick={downloadCv}>Download CV</button>
+            {jobId && saved && (
+              <Link href={`/jobs/${jobId}`} className="btn" style={{ color: '#1d4ed8', borderColor: '#bfdbfe' }}>
+                View on Job Page ↗
+              </Link>
+            )}
+            <button
+              className="btn"
+              onClick={() => { setResult(null); setDescription(''); setSaved(false) }}
+              style={{ marginLeft: 'auto' }}
+            >
+              Create another
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
