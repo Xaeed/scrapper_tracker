@@ -1,9 +1,0 @@
-{
-  "/jobs/[id]/page": "app/jobs/[id]/page.js",
-  "/api/jobs/[id]/route": "app/api/jobs/[id]/route.js",
-  "/setup/page": "app/setup/page.js",
-  "/api/jobs/[id]/cv/route": "app/api/jobs/[id]/cv/route.js",
-  "/jobs/page": "app/jobs/page.js",
-  "/cv/page": "app/cv/page.js",
-  "/login/page": "app/login/page.js"
-}
