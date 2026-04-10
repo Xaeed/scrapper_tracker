@@ -87,4 +87,23 @@ async function pushToTracker(jobs) {
   }
 }
 
-module.exports = { mergeAndGetNew, loadJobs, getStats, pushToTracker };
+// ─── Fetch live scraper config from tracker ──────────────────────────────────
+
+async function fetchRemoteConfig() {
+  const baseUrl = process.env.TRACKER_URL;
+  if (!baseUrl) return null;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/scraper-config`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (Array.isArray(data.keywords) && Array.isArray(data.locations)) {
+      return { keywords: data.keywords, locations: data.locations };
+    }
+  } catch {
+    // tracker offline or unreachable — fall back to local config
+  }
+  return null;
+}
+
+module.exports = { mergeAndGetNew, loadJobs, getStats, pushToTracker, fetchRemoteConfig };

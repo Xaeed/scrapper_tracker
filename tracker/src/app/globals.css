@@ -213,6 +213,7 @@ tr:hover td { background: #f8f9fb; }
 .badge-APPLIED       { background: #dcfce7; color: #166534; }
 .badge-REJECTED      { background: #fee2e2; color: #991b1b; }
 .badge-NOT_INTERESTED { background: #f3f4f6; color: #6b7280; }
+.badge-READY          { background: #f3e8ff; color: #7c3aed; }
 
 /* ── Status select (inline) ──────────────────────────── */
 select.status-select {

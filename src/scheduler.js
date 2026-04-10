@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const config = require('../config');
 const { scrapeAllJobs } = require('./scraper');
-const { mergeAndGetNew, pushToTracker } = require('./storage');
+const { mergeAndGetNew, pushToTracker, fetchRemoteConfig } = require('./storage');
 const { notify } = require('./notifier');
 const logger = require('./logger');
 
@@ -19,6 +19,16 @@ async function runAgent(label = 'Manual run') {
   // Clear log file and record run start
   logger.startLog(label);
   logger.log(`[agent] Starting: ${label}`);
+
+  // Pull latest keywords/locations from tracker (if available), else use local config
+  const remoteConfig = await fetchRemoteConfig();
+  if (remoteConfig) {
+    config.jobKeywords = remoteConfig.keywords;
+    config.locations   = remoteConfig.locations;
+    logger.log(`[agent] Config loaded from tracker: ${remoteConfig.keywords.length} keywords, ${remoteConfig.locations.length} locations`);
+  } else {
+    logger.log(`[agent] Using local config: ${config.jobKeywords.length} keywords, ${config.locations.length} locations`);
+  }
 
   try {
     // Pass pushToTracker as onBatch — saves each search result to tracker immediately

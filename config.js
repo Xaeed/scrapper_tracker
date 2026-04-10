@@ -3,14 +3,26 @@ require('dotenv').config();
 module.exports = {
   // ─── Job Search Keywords ───────────────────────────────────────────────────
   jobKeywords: [
-    'DevOps Engineer Contract',
-    'Cloud Engineer Contract',
-    'Senior Backend Engineer Node.js Contract',
-    'Azure Engineer Contract',
-    'GCP Engineer Contract',
-    'Data Migration Engineer Contract',
-    'Site Reliability Engineer Contract',
-    'Platform Engineer Contract',
+    // ── DevOps / Platform / Cloud / Infra ──────────────────────────────────
+    'DevOps Engineer',
+    'Platform Engineer',
+    'Cloud Infrastructure Engineer',
+    'Site Reliability Engineer',
+    'AWS DevOps Engineer',
+    'Azure DevOps Engineer',
+    'GCP Engineer',
+    'Kubernetes Engineer',
+
+    // ── Data Engineering ───────────────────────────────────────────────────
+    'Data Engineer',
+    'Cloud Data Engineer',
+    'Data Platform Engineer',
+
+    // ── Backend — .NET / Node.js ───────────────────────────────────────────
+    'Backend Engineer Node.js',
+    'Backend Engineer .NET',
+    '.NET Developer',
+    'Node.js Developer',
   ],
 
   // ─── Target European Countries ─────────────────────────────────────────────
@@ -23,6 +35,10 @@ module.exports = {
     'Denmark',
     'Norway',
     'Austria',
+    'Belgium',
+    'Poland',
+    'Portugal',
+    'United kingdom'
   ],
 
   // ─── LinkedIn Filter Codes ──────────────────────────────────────────────────

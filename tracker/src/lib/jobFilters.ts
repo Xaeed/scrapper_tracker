@@ -6,8 +6,9 @@ export function buildWhere(opts: {
   keyword: string
   dateFrom: string
   dateTo: string
+  excludedCompanies?: string[]
 }): Prisma.JobWhereInput {
-  const { search, status, keyword, dateFrom, dateTo } = opts
+  const { search, status, keyword, dateFrom, dateTo, excludedCompanies } = opts
   const where: Prisma.JobWhereInput = {}
 
   if (search) {
@@ -29,6 +30,12 @@ export function buildWhere(opts: {
       end.setHours(23, 59, 59, 999)
       where.postedAt.lte = end
     }
+  }
+
+  if (excludedCompanies && excludedCompanies.length > 0) {
+    where.AND = excludedCompanies.map(name => ({
+      company: { not: { contains: name } },
+    }))
   }
 
   return where

@@ -13,7 +13,9 @@ export async function middleware(req: NextRequest) {
     pathname === '/login' ||
     pathname === '/setup' ||
     pathname.startsWith('/api/auth/') ||
-    pathname.startsWith('/api/users/setup')
+    pathname.startsWith('/api/users/setup') ||
+    pathname === '/api/import' ||
+    pathname === '/api/scraper-config'
   ) {
     return NextResponse.next()
   }

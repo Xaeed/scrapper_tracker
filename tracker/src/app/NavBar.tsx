@@ -25,7 +25,8 @@ export default function NavBar({ session }: Props) {
           <Link href="/jobs/add">Add Job</Link>
           {/* <Link href="/import">Import</Link> */}
           <Link href="/cv">Create CV</Link>
-          {session.role === 'admin' && <Link href="/admin">Admin</Link>}
+          {session.role === 'admin' && <Link href="/admin">Users</Link>}
+          {session.role === 'admin' && <Link href="/admin/scraper-config">Scraper Config</Link>}
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{session.username}</span>
             <button onClick={logout} style={{ fontSize: 13, padding: '3px 10px' }}>Logout</button>

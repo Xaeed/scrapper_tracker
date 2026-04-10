@@ -24,11 +24,12 @@ interface ApiResponse {
   totalPages: number
 }
 
-const STATUSES = ['', 'NEW', 'VIEWED', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
+const STATUSES = ['', 'NEW', 'VIEWED', 'READY', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
 
 const STATUS_COLORS: Record<string, string> = {
   NEW: 'badge badge-NEW',
   VIEWED: 'badge badge-VIEWED',
+  READY: 'badge badge-READY',
   APPLIED: 'badge badge-APPLIED',
   REJECTED: 'badge badge-REJECTED',
   NOT_INTERESTED: 'badge badge-NOT_INTERESTED',
@@ -265,7 +266,7 @@ export default function JobsPage() {
                       onChange={e => handleStatusChange(job, e.target.value)}
                       disabled={savingId === job.id}
                     >
-                      {['NEW', 'VIEWED', 'APPLIED', 'REJECTED', 'NOT_INTERESTED'].map(s => (
+                      {['NEW', 'VIEWED', 'READY', 'APPLIED', 'REJECTED', 'NOT_INTERESTED'].map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>

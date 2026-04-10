@@ -17,7 +17,12 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(sp.get('page') || '1'))
   const pageSize = Math.min(100, Math.max(1, parseInt(sp.get('pageSize') || '20')))
 
-  const where = buildWhere({ search, status, keyword, dateFrom, dateTo })
+  const scraperConfig = await prisma.scraperConfig.findUnique({ where: { id: 1 } })
+  const excludedCompanies: string[] = scraperConfig
+    ? JSON.parse(scraperConfig.excludedCompanies ?? '[]')
+    : []
+
+  const where = buildWhere({ search, status, keyword, dateFrom, dateTo, excludedCompanies })
 
   const [total, jobs] = await Promise.all([
     prisma.job.count({ where }),

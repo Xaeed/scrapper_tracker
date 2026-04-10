@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body ?? $json;\nconst jobDescription = (body.job_description || '').toString().trim();\nconst profile = (body.profile || 'devops').toString().trim().toLowerCase();\nconst customPrompt = (body.custom_prompt || '').toString().trim();\n\nif (!jobDescription) {\n  throw new Error('job_description is required in the request body');\n}\nif (!['devops', 'backend'].includes(profile)) {\n  throw new Error(\"profile must be either 'devops' or 'backend'\");\n}\n\nconst cvPathMap = {\n  devops: '/home/node/.n8n-files/cv_devops_v2.html',\n  backend: '/home/node/.n8n-files/cv_backend_v2.html'\n};\n\nconst formatPart = (n) => String(n).padStart(2, '0');\nconst now = new Date();\nconst timestamp = `${now.getFullYear()}-${formatPart(now.getMonth()+1)}-${formatPart(now.getDate())}_${formatPart(now.getHours())}-${formatPart(now.getMinutes())}-${formatPart(now.getSeconds())}`;\n\nconst outputFileName = `cv-${profile}-${timestamp}.html`;\nconst outputFilePath = `/home/node/.n8n-files/generated/${outputFileName}`;\n\nreturn [{\n  json: {\n    profile,\n    job_description: jobDescription,\n    custom_prompt: customPrompt,\n    source_cv_path: cvPathMap[profile],\n    output_file_name: outputFileName,\n    output_file_path: outputFilePath,\n    requested_at: now.toISOString()\n  }\n}];"
+        "jsCode": "const body = $json.body ?? $json;\nconst jobDescription = (body.job_description || '').toString().trim();\nconst profile = (body.profile || 'devops').toString().trim().toLowerCase();\nconst customPrompt = (body.custom_prompt || '').toString().trim();\n\nif (!jobDescription) {\n  throw new Error('job_description is required in the request body');\n}\nif (!['devops', 'backend'].includes(profile)) {\n  throw new Error(\"profile must be either 'devops' or 'backend'\");\n}\n\nconst cvPathMap = {\n  devops: '/home/node/.n8n-files/cv_devops_v2.html',\n  backend: '/home/node/.n8n-files/cv_backend_v2.html'\n};\n\nconst formatPart = (n) => String(n).padStart(2, '0');\nconst now = new Date();\nconst timestamp = `${now.getFullYear()}-${formatPart(now.getMonth()+1)}-${formatPart(now.getDate())}_${formatPart(now.getHours())}-${formatPart(now.getMinutes())}-${formatPart(now.getSeconds())}`;\n\nconst outputFileName = `cv-${profile}-${timestamp}.pdf`;\nconst outputFilePath = `/home/node/.n8n-files/generated/${outputFileName}`;\n\nreturn [{\n  json: {\n    profile,\n    job_description: jobDescription,\n    custom_prompt: customPrompt,\n    source_cv_path: cvPathMap[profile],\n    output_file_name: outputFileName,\n    output_file_path: outputFilePath,\n    requested_at: now.toISOString()\n  }\n}];"
       },
       "id": "2",
       "name": "Validate + Select CV",
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const profile = $json.profile;\nconst jobDescription = $json.job_description;\nconst baseCvHtml = $json.base_cv_html;\nconst customPrompt = $json.custom_prompt || '';\n\nlet prompt;\nif (customPrompt) {\n  // Use the user's custom prompt — append job description and base CV automatically\n  prompt = `${customPrompt}\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n} else {\n  // Default ATS-optimisation prompt\n  prompt = `You are an expert CV writer and ATS optimization specialist.\\n\\nYou will be given a candidate's existing CV in HTML format and a job description. Your task is to produce a tailored version of the CV that achieves 90%+ ATS compatibility score for the given job description.\\n\\nSTRICT RULES:\\n- Output ONLY the complete, valid HTML document. No explanations, no markdown fences, no commentary.\\n- Preserve the EXACT same HTML structure, CSS styles, class names, and visual layout as the original CV.\\n- Do NOT add or remove any HTML sections, CSS rules, or structural elements.\\n- Only modify text content (job titles, summaries, skill lists, bullet points, descriptions) to better match the job description.\\n- Do NOT invent experience, certifications, education, companies, dates, or projects that are not in the original CV.\\n- Rephrase and reorder existing content to highlight relevance to the job description.\\n- Integrate ATS-critical keywords from the job description ONLY where they genuinely match existing experience.\\n- Place the most relevant experience and skills first.\\n- Keep all contact details, name, and dates exactly as in the original.\\n- The output must be a single complete HTML file that renders identically in structure to the original.\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    anthropic_model: 'claude-sonnet-4-6',\n    anthropic_prompt: prompt\n  }\n}];"
+        "jsCode": "const profile = $json.profile;\nconst jobDescription = $json.job_description;\nconst baseCvHtml = $json.base_cv_html;\nconst customPrompt = $json.custom_prompt || '';\n\nlet prompt;\nif (customPrompt) {\n  prompt = `${customPrompt}\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n} else {\n  prompt = `You are an expert CV writer and ATS optimization specialist.\\n\\nYou will be given a candidate's existing CV in HTML format and a job description. Your task is to produce a tailored version of the CV that achieves 90%+ ATS compatibility score for the given job description.\\n\\nSTRICT RULES:\\n- Output ONLY the complete, valid HTML document. No explanations, no markdown fences, no commentary.\\n- Preserve the EXACT same HTML structure, CSS styles, class names, and visual layout as the original CV.\\n- Do NOT add or remove any HTML sections, CSS rules, or structural elements.\\n- Only modify text content (job titles, summaries, skill lists, bullet points, descriptions) to better match the job description.\\n- Do NOT invent experience, certifications, education, companies, dates, or projects that are not in the original CV.\\n- Rephrase and reorder existing content to highlight relevance to the job description.\\n- Integrate ATS-critical keywords from the job description ONLY where they genuinely match existing experience.\\n- Place the most relevant experience and skills first.\\n- Keep all contact details, name, and dates exactly as in the original.\\n- The output must be a single complete HTML file that renders identically in structure to the original.\\n\\nSelected profile: ${profile}\\n\\nJob Description:\\n${jobDescription}\\n\\nOriginal CV HTML:\\n${baseCvHtml}`;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    anthropic_model: 'claude-sonnet-4-6',\n    anthropic_prompt: prompt\n  }\n}];"
       },
       "id": "4",
       "name": "Build Claude Prompt",
@@ -79,13 +79,23 @@
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst html = $json.generated_cv_html;\nconst filePath = $json.output_file_path;\n\nif (!html) throw new Error('generated_cv_html is empty');\nif (!filePath) throw new Error('output_file_path is missing');\n\nconst dir = path.dirname(filePath);\nif (!fs.existsSync(dir)) {\n  fs.mkdirSync(dir, { recursive: true });\n}\n\nfs.writeFileSync(filePath, html, 'utf8');\n\nreturn [{ json: { ...$json } }];"
+        "jsCode": "const http = require('http');\n\nconst html = $json.generated_cv_html;\nif (!html) throw new Error('generated_cv_html is empty');\n\nconst boundary = '----FormBoundary' + Date.now();\nconst CRLF = '\\r\\n';\n\nconst part = [\n  `--${boundary}`,\n  'Content-Disposition: form-data; name=\"files\"; filename=\"index.html\"',\n  'Content-Type: text/html; charset=utf-8',\n  '',\n  html,\n  `--${boundary}--`,\n  ''\n].join(CRLF);\n\nconst bodyBuffer = Buffer.from(part, 'utf8');\n\nconst pdfBuffer = await new Promise((resolve, reject) => {\n  const req = http.request({\n    hostname: 'gotenberg',\n    port: 3000,\n    path: '/forms/chromium/convert/html',\n    method: 'POST',\n    headers: {\n      'Content-Type': `multipart/form-data; boundary=${boundary}`,\n      'Content-Length': bodyBuffer.length\n    }\n  }, (res) => {\n    const chunks = [];\n    res.on('data', chunk => chunks.push(chunk));\n    res.on('end', () => {\n      const body = Buffer.concat(chunks);\n      if (res.statusCode !== 200) {\n        reject(new Error(`Gotenberg ${res.statusCode}: ${body.toString('utf8').substring(0, 300)}`));\n      } else {\n        resolve(body);\n      }\n    });\n  });\n  req.on('error', (e) => reject(new Error(`Cannot reach Gotenberg: ${e.message}`)));\n  req.write(bodyBuffer);\n  req.end();\n});\n\n// Pass PDF as base64 in JSON — avoids n8n binary handling quirks entirely\nreturn [{\n  json: {\n    ...$json,\n    pdf_base64: pdfBuffer.toString('base64')\n  }\n}];"
+      },
+      "id": "9",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst filePath = $json.output_file_path;\nif (!filePath) throw new Error('output_file_path is missing');\nif (!$json.pdf_base64) throw new Error('pdf_base64 is missing — Convert HTML to PDF node may have failed');\n\nconst dir = path.dirname(filePath);\nif (!fs.existsSync(dir)) {\n  fs.mkdirSync(dir, { recursive: true });\n}\n\nconst pdfBuffer = Buffer.from($json.pdf_base64, 'base64');\nfs.writeFileSync(filePath, pdfBuffer);\n\nreturn [{ json: { ...$json } }];"
       },
       "id": "7",
       "name": "Write CV to Disk",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1800, 300]
+      "position": [2060, 300]
     },
     {
       "parameters": {
@@ -99,7 +109,7 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2060, 300]
+      "position": [2320, 300]
     }
   ],
   "connections": {
@@ -119,6 +129,9 @@
       "main": [[{ "node": "Extract Generated CV", "type": "main", "index": 0 }]]
     },
     "Extract Generated CV": {
+      "main": [[{ "node": "Convert HTML to PDF", "type": "main", "index": 0 }]]
+    },
+    "Convert HTML to PDF": {
       "main": [[{ "node": "Write CV to Disk", "type": "main", "index": 0 }]]
     },
     "Write CV to Disk": {

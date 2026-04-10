@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const allowed: Record<string, unknown> = {}
 
   if ('status' in body) {
-    const valid = ['NEW', 'VIEWED', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
+    const valid = ['NEW', 'VIEWED', 'READY', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
     if (!valid.includes(body.status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
