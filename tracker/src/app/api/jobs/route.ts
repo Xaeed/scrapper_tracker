@@ -10,6 +10,8 @@ export async function GET(req: NextRequest) {
   const search = sp.get('search')?.trim() || ''
   const status = sp.get('status')?.trim() || ''
   const keyword = sp.get('searchKeyword')?.trim() || ''
+  const tag = sp.get('tag')?.trim() || ''
+  const importMethod = sp.get('importMethod')?.trim() || ''
   const dateFrom = sp.get('dateFrom') || ''
   const dateTo = sp.get('dateTo') || ''
   const sortBy = VALID_SORT_FIELDS.includes(sp.get('sortBy') || '') ? sp.get('sortBy')! : 'createdAt'
@@ -22,7 +24,16 @@ export async function GET(req: NextRequest) {
     ? JSON.parse(scraperConfig.excludedCompanies ?? '[]')
     : []
 
-  const where = buildWhere({ search, status, keyword, dateFrom, dateTo, excludedCompanies })
+  const where = buildWhere({
+    search,
+    status,
+    keyword,
+    dateFrom,
+    dateTo,
+    tag: tag || undefined,
+    importMethod: importMethod || undefined,
+    excludedCompanies,
+  })
 
   const [total, jobs] = await Promise.all([
     prisma.job.count({ where }),
@@ -52,6 +63,7 @@ export async function POST(req: NextRequest) {
         company: company?.trim() || 'Unknown',
         location: location?.trim() || null,
         description: description?.trim() || null,
+        importMethod: 'manual',
       },
     })
     return NextResponse.json(job, { status: 201 })
@@ -73,6 +85,8 @@ export async function DELETE(req: NextRequest) {
     keyword: sp.get('searchKeyword')?.trim() || '',
     dateFrom: sp.get('dateFrom') || '',
     dateTo: sp.get('dateTo') || '',
+    tag: sp.get('tag')?.trim() || undefined,
+    importMethod: sp.get('importMethod')?.trim() || undefined,
   })
 
   const { count } = await prisma.job.deleteMany({ where })

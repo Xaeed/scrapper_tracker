@@ -98,7 +98,11 @@ async function fetchRemoteConfig() {
     if (!res.ok) return null;
     const data = await res.json();
     if (Array.isArray(data.keywords) && Array.isArray(data.locations)) {
-      return { keywords: data.keywords, locations: data.locations };
+      return {
+        keywords: data.keywords,
+        locations: data.locations,
+        excludedCompanies: Array.isArray(data.excludedCompanies) ? data.excludedCompanies : [],
+      };
     }
   } catch {
     // tracker offline or unreachable — fall back to local config

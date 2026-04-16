@@ -23,9 +23,10 @@ async function runAgent(label = 'Manual run') {
   // Pull latest keywords/locations from tracker (if available), else use local config
   const remoteConfig = await fetchRemoteConfig();
   if (remoteConfig) {
-    config.jobKeywords = remoteConfig.keywords;
-    config.locations   = remoteConfig.locations;
-    logger.log(`[agent] Config loaded from tracker: ${remoteConfig.keywords.length} keywords, ${remoteConfig.locations.length} locations`);
+    config.jobKeywords        = remoteConfig.keywords;
+    config.locations          = remoteConfig.locations;
+    config.excludedCompanies  = remoteConfig.excludedCompanies;
+    logger.log(`[agent] Config loaded from tracker: ${remoteConfig.keywords.length} keywords, ${remoteConfig.locations.length} locations, ${remoteConfig.excludedCompanies.length} excluded companies`);
   } else {
     logger.log(`[agent] Using local config: ${config.jobKeywords.length} keywords, ${config.locations.length} locations`);
   }

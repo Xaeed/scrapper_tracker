@@ -5,6 +5,14 @@ const config = require('../config');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// LinkedIn's Remote filter ignores geography — a "Germany" search can return
+// US/global jobs. This checks the job's scraped location against allowed countries.
+function isLocationAllowed(jobLocation, allowedLocations) {
+  if (!jobLocation) return false;
+  const loc = jobLocation.toLowerCase();
+  return allowedLocations.some(country => loc.includes(country.toLowerCase()));
+}
+
 function randomDelay(range) {
   return new Promise(resolve =>
     setTimeout(resolve, Math.floor(Math.random() * (range.max - range.min)) + range.min)
@@ -156,8 +164,24 @@ async function scrapeSearch(context, keyword, location) {
 
     const found = await parseJobsFromPage(page, keyword, location);
 
+    // Drop jobs whose scraped location doesn't match any configured country.
+    // LinkedIn's Remote filter returns global results regardless of search location.
+    const locationFiltered = found.filter(job => isLocationAllowed(job.location, config.locations));
+    if (locationFiltered.length < found.length) {
+      console.log(`  [filter] Dropped ${found.length - locationFiltered.length} out-of-region job(s) for "${keyword}" / ${location}`);
+    }
+
+    // Drop jobs from excluded companies
+    const excluded = config.excludedCompanies || [];
+    const companyFiltered = excluded.length
+      ? locationFiltered.filter(job => !excluded.some(ex => job.company.toLowerCase().includes(ex.toLowerCase())))
+      : locationFiltered;
+    if (companyFiltered.length < locationFiltered.length) {
+      console.log(`  [filter] Dropped ${locationFiltered.length - companyFiltered.length} excluded company job(s)`);
+    }
+
     // Debug: save screenshot on first search with 0 results
-    if (found.length === 0 && process.env.SCRAPER_DEBUG === 'true') {
+    if (locationFiltered.length === 0 && process.env.SCRAPER_DEBUG === 'true') {
       const fs = require('fs');
       const screenshotPath = `./logs/debug-screenshot.png`;
       fs.mkdirSync('./logs', { recursive: true });
@@ -166,7 +190,7 @@ async function scrapeSearch(context, keyword, location) {
       process.env.SCRAPER_DEBUG = 'done'; // only screenshot once
     }
 
-    jobs.push(...found);
+    jobs.push(...companyFiltered);
   } catch (err) {
     console.error(`  [scraper] Error on "${keyword}" / ${location}: ${err.message}`);
   } finally {

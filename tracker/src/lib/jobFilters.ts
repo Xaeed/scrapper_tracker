@@ -6,9 +6,11 @@ export function buildWhere(opts: {
   keyword: string
   dateFrom: string
   dateTo: string
+  tag?: string
+  importMethod?: string
   excludedCompanies?: string[]
 }): Prisma.JobWhereInput {
-  const { search, status, keyword, dateFrom, dateTo, excludedCompanies } = opts
+  const { search, status, keyword, dateFrom, dateTo, tag, importMethod, excludedCompanies } = opts
   const where: Prisma.JobWhereInput = {}
 
   if (search) {
@@ -16,11 +18,21 @@ export function buildWhere(opts: {
       { title: { contains: search } },
       { company: { contains: search } },
       { location: { contains: search } },
+      { tags: { contains: search } },
     ]
   }
 
   if (status) where.status = status
   if (keyword) where.searchKeyword = { contains: keyword }
+
+  if (tag?.trim()) {
+    const t = tag.trim().toLowerCase()
+    where.tags = { contains: `"${t}"` }
+  }
+
+  if (importMethod === 'manual' || importMethod === 'scraped') {
+    where.importMethod = importMethod
+  }
 
   if (dateFrom || dateTo) {
     where.postedAt = {}

@@ -17,12 +17,30 @@ interface CvResult {
   requested_at: string
 }
 
+interface SavedProfile {
+  id: string
+  name: string
+}
+
+type ProfileSelection = 'devops' | 'backend' | string
+
 export default function CvForm({ title, company, jobId }: Props) {
-  const [profile, setProfile] = useState<'devops' | 'backend'>('devops')
+  const [profile, setProfile] = useState<ProfileSelection>('devops')
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([])
   const [description, setDescription] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
   const [loadingDescription, setLoadingDescription] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/cv-profiles')
+      .then(r => r.json())
+      .then(data => {
+        const list = Array.isArray(data.profiles) ? data.profiles : []
+        setSavedProfiles(list.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })))
+      })
+      .catch(() => {})
+  }, [])
 
   // Auto-fetch job description when opened from a job page
   useEffect(() => {
@@ -50,14 +68,20 @@ export default function CvForm({ title, company, jobId }: Props) {
     setSaved(false)
 
     try {
+      const body: Record<string, string> = {
+        job_description: description,
+        ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
+      }
+      if (profile === 'devops' || profile === 'backend') {
+        body.profile = profile
+      } else {
+        body.cv_profile_id = profile
+      }
+
       const res = await fetch('/api/cv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_description: description,
-          profile,
-          ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
-        }),
+        body: JSON.stringify(body),
       })
       const text = await res.text()
       let parsed: unknown
@@ -172,15 +196,28 @@ export default function CvForm({ title, company, jobId }: Props) {
       <form onSubmit={handleSubmit}>
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="field" style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>CV Profile</label>
-            <select
-              value={profile}
-              onChange={e => setProfile(e.target.value as 'devops' | 'backend')}
-              style={{ maxWidth: 200 }}
-            >
-              <option value="devops">DevOps</option>
-              <option value="backend">Backend</option>
-            </select>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>CV profile</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+              <select
+                value={profile}
+                onChange={e => setProfile(e.target.value)}
+                style={{ maxWidth: 320 }}
+              >
+                <option value="devops">Built-in: DevOps</option>
+                <option value="backend">Built-in: Backend</option>
+                {savedProfiles.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Link href="/cv/profiles" className="btn" style={{ fontSize: 12, padding: '4px 10px' }}>
+                Manage profiles…
+              </Link>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+              Custom profiles use HTML files you upload under Manage profiles. Built-in templates use the server-side n8n paths.
+            </p>
           </div>
 
           <div className="field" style={{ marginBottom: 16 }}>

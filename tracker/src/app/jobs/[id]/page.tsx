@@ -21,11 +21,13 @@ interface Job {
   cvHtml: string | null
   attachmentName: string | null
   attachmentType: string | null
+  importMethod?: string
+  tags?: string
   createdAt: string
   updatedAt: string
 }
 
-const STATUSES = ['NEW', 'VIEWED', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
+const STATUSES = ['NEW', 'VIEWED', 'READY', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
 
 function fmt(iso: string | null) {
   if (!iso) return '—'
@@ -47,12 +49,23 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [uploading, setUploading] = useState(false)
   const [removingAttachment, setRemovingAttachment] = useState(false)
   const [deletingCv, setDeletingCv] = useState(false)
+  const [tagsInput, setTagsInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/jobs/${id}`)
       .then(r => { if (r.status === 404) { setNotFound(true); return null } return r.json() })
-      .then(data => { if (data) setJob(data) })
+      .then(data => {
+        if (data) {
+          setJob(data)
+          try {
+            const arr = JSON.parse(data.tags || '[]') as unknown
+            setTagsInput(Array.isArray(arr) ? arr.map(String).join(', ') : '')
+          } catch {
+            setTagsInput('')
+          }
+        }
+      })
       .finally(() => setLoading(false))
   }, [id])
 
@@ -67,11 +80,30 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   async function save() {
     if (!job) return
     setSaving(true)
-    await fetch(`/api/jobs/${id}`, {
+    const tagList = tagsInput
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+    const res = await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: job.status, notes: job.notes, description: job.description }),
+      body: JSON.stringify({
+        status: job.status,
+        notes: job.notes,
+        description: job.description,
+        tags: tagList,
+      }),
     })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data && typeof data === 'object' && 'id' in data) {
+      setJob(data as Job)
+      try {
+        const arr = JSON.parse((data as Job).tags || '[]') as unknown
+        setTagsInput(Array.isArray(arr) ? arr.map(String).join(', ') : '')
+      } catch {
+        /* keep */
+      }
+    }
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -128,17 +160,22 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     <>
       <div className="top-bar">
         <Link href="/jobs" className="btn">← Back</Link>
-        <a href={job.link} target="_blank" rel="noopener noreferrer" className="btn primary">
-          Open on LinkedIn ↗
-        </a>
         <a
           href={`/cv?jobId=${id}&title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn"
-          style={{ color: '#1d4ed8', borderColor: '#bfdbfe' }}
+          className="btn primary"
         >
           {job.cvHtml ? 'Regenerate CV ↗' : 'Create CV ↗'}
+        </a>
+        <a
+          href={job.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn"
+          title="Open the original posting (e.g. LinkedIn)"
+        >
+          Original post ↗
         </a>
         <button
           onClick={handleDelete}
@@ -150,7 +187,27 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       </div>
 
       <h1 style={{ marginBottom: 4 }}>{job.title}</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>{job.company}{job.location ? ` · ${job.location}` : ''}</p>
+      <p style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
+        {job.company}{job.location ? ` · ${job.location}` : ''}
+      </p>
+      <p style={{ marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <span
+          className="badge"
+          style={
+            job.importMethod === 'manual'
+              ? { background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }
+              : { background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }
+          }
+        >
+          {job.importMethod === 'manual' ? 'Manually imported' : 'Scraped'}
+        </span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Job URL:{' '}
+          <a href={job.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>
+            {job.link}
+          </a>
+        </span>
+      </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
         {/* Info card */}
@@ -160,10 +217,11 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             {[
               ['LinkedIn ID', job.linkedinId],
               ['Posted', fmt(job.postedAt)],
-              ['Scraped', fmt(job.scrapedAt)],
-              ['Search Keyword', job.searchKeyword],
-              ['Search Location', job.searchLocation],
-              ['Imported', fmt(job.createdAt)],
+              ['Scraped at', fmt(job.scrapedAt)],
+              ['Search keyword', job.searchKeyword],
+              ['Search location', job.searchLocation],
+              ['Import method', job.importMethod === 'manual' ? 'manual' : 'scraped'],
+              ['Created in app', fmt(job.createdAt)],
               ['Last updated', fmt(job.updatedAt)],
             ].map(([k, v]) => (
               <div key={String(k)} className="detail-row">
@@ -186,6 +244,17 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             >
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+          </div>
+          <div className="field">
+            <label>Tags</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={e => setTagsInput(e.target.value)}
+              placeholder="devops, azure, kubernetes — comma-separated"
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}
+            />
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Saved with Status &amp; Notes (Save below). Duplicates and casing are normalized.</p>
           </div>
           <div className="field">
             <label>Job Description</label>

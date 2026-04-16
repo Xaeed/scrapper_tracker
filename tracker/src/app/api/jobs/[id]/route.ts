@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { normalizeTagList, stringifyTags } from '@/lib/tags'
 
 type Ctx = { params: { id: string } }
 
@@ -40,6 +41,13 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   if ('cvHtml' in body) {
     allowed.cvHtml = typeof body.cvHtml === 'string' ? body.cvHtml : null
+  }
+
+  if ('tags' in body) {
+    if (!Array.isArray(body.tags)) {
+      return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 })
+    }
+    allowed.tags = stringifyTags(normalizeTagList(body.tags.map((x: unknown) => String(x))))
   }
 
   if (Object.keys(allowed).length === 0) {

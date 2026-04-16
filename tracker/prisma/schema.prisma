@@ -16,11 +16,21 @@ model User {
 }
 
 model ScraperConfig {
-  id               Int      @id @default(1)
-  keywords         String   // JSON-encoded String[]
-  locations        String   // JSON-encoded String[]
-  excludedCompanies String  @default("[]") // JSON-encoded String[]
-  updatedAt        DateTime @updatedAt
+  id                Int      @id @default(1)
+  keywords          String // JSON-encoded String[]
+  locations         String // JSON-encoded String[]
+  excludedCompanies String   @default("[]") // JSON-encoded String[]
+  updatedAt         DateTime @updatedAt
+}
+
+model CvProfile {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  fileName  String
+  fileData  String // base64
+  mimeType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Job {
@@ -37,10 +47,12 @@ model Job {
   status         String    @default("NEW")
   description    String?
   notes          String?
-  cvHtml              String?
-  attachmentName      String?
-  attachmentData      String?
-  attachmentType      String?
+  cvHtml         String?
+  attachmentName String?
+  attachmentData String?
+  attachmentType String?
+  importMethod   String    @default("scraped") // scraped | manual
+  tags           String    @default("[]") // JSON-encoded String[] (normalized lowercase)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }

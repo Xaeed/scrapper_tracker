@@ -14,6 +14,8 @@ interface Job {
   status: string
   notes: string | null
   createdAt: string
+  importMethod?: string
+  tags?: string
 }
 
 interface ApiResponse {
@@ -49,6 +51,8 @@ export default function JobsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [keyword, setKeyword] = useState('')
+  const [tag, setTag] = useState('')
+  const [importMethod, setImportMethod] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
@@ -65,23 +69,27 @@ export default function JobsPage() {
     if (search) p.set('search', search)
     if (status) p.set('status', status)
     if (keyword) p.set('searchKeyword', keyword)
+    if (tag) p.set('tag', tag)
+    if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
     p.set('sortBy', sortBy)
     p.set('sortDir', sortDir)
     p.set('page', String(page))
     return p.toString()
-  }, [search, status, keyword, dateFrom, dateTo, sortBy, sortDir, page])
+  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo, sortBy, sortDir, page])
 
   const exportUrl = useCallback(() => {
     const p = new URLSearchParams()
     if (search) p.set('search', search)
     if (status) p.set('status', status)
     if (keyword) p.set('searchKeyword', keyword)
+    if (tag) p.set('tag', tag)
+    if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
     return `/api/export?${p.toString()}`
-  }, [search, status, keyword, dateFrom, dateTo])
+  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo])
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -140,7 +148,7 @@ export default function JobsPage() {
   }
 
   async function handleDeleteAll() {
-    const hasFilters = !!(search || status || keyword || dateFrom || dateTo)
+    const hasFilters = !!(search || status || keyword || tag || importMethod || dateFrom || dateTo)
     const label = hasFilters ? `${total} filtered job${total !== 1 ? 's' : ''}` : `all ${total} job${total !== 1 ? 's' : ''}`
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return
 
@@ -148,6 +156,8 @@ export default function JobsPage() {
     if (search) p.set('search', search)
     if (status) p.set('status', status)
     if (keyword) p.set('searchKeyword', keyword)
+    if (tag) p.set('tag', tag)
+    if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
 
@@ -158,8 +168,25 @@ export default function JobsPage() {
   }
 
   function reset() {
-    setSearch(''); setStatus(''); setKeyword(''); setDateFrom(''); setDateTo('')
+    setSearch('')
+    setStatus('')
+    setKeyword('')
+    setTag('')
+    setImportMethod('')
+    setDateFrom('')
+    setDateTo('')
     setPage(1)
+  }
+
+  function formatTagsJson(tagsJson: string | undefined): string {
+    if (!tagsJson) return '—'
+    try {
+      const arr = JSON.parse(tagsJson) as unknown
+      if (!Array.isArray(arr) || arr.length === 0) return '—'
+      return arr.map(String).join(', ')
+    } catch {
+      return '—'
+    }
   }
 
   return (
@@ -175,7 +202,7 @@ export default function JobsPage() {
           >
             {deletingAll
               ? 'Deleting…'
-              : (search || status || keyword || dateFrom || dateTo)
+              : (search || status || keyword || tag || importMethod || dateFrom || dateTo)
                 ? `Delete Filtered (${total})`
                 : `Delete All (${total})`}
           </button>
@@ -207,6 +234,23 @@ export default function JobsPage() {
             value={keyword}
             onChange={e => { setKeyword(e.target.value); setPage(1) }}
           />
+        </div>
+        <div className="filter-field short">
+          <label>Tag</label>
+          <input
+            type="text"
+            placeholder="e.g. devops"
+            value={tag}
+            onChange={e => { setTag(e.target.value); setPage(1) }}
+          />
+        </div>
+        <div className="filter-field short">
+          <label>Source</label>
+          <select value={importMethod} onChange={e => { setImportMethod(e.target.value); setPage(1) }}>
+            <option value="">All</option>
+            <option value="scraped">Scraped</option>
+            <option value="manual">Manual</option>
+          </select>
         </div>
         <div className="filter-field short">
           <label>Posted from</label>
@@ -242,6 +286,8 @@ export default function JobsPage() {
                 <th>Location</th>
                 <th className="sortable" onClick={() => toggleSort('postedAt')}>Posted{sortIndicator('postedAt')}</th>
                 <th>Keyword</th>
+                <th>Tags</th>
+                <th>Source</th>
                 <th className="sortable" onClick={() => toggleSort('status')}>Status{sortIndicator('status')}</th>
                 <th>Notes</th>
                 <th></th>
@@ -251,14 +297,22 @@ export default function JobsPage() {
               {jobs.map(job => (
                 <tr key={job.id}>
                   <td style={{ maxWidth: 280 }}>
-                    <a href={job.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+                    <Link href={`/jobs/${job.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
                       {job.title}
-                    </a>
+                    </Link>
                   </td>
                   <td>{job.company}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{job.location || '—'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{fmt(job.postedAt)}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{job.searchKeyword || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 140 }}>{formatTagsJson(job.tags)}</td>
+                  <td style={{ fontSize: 12 }}>
+                    {job.importMethod === 'manual' ? (
+                      <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>Manual</span>
+                    ) : (
+                      <span className="badge" style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>Scraped</span>
+                    )}
+                  </td>
                   <td>
                     <select
                       className="status-select"
@@ -281,15 +335,13 @@ export default function JobsPage() {
                     />
                   </td>
                   <td style={{ whiteSpace: 'nowrap', display: 'flex', gap: 6 }}>
-                    <a
-                      href={job.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn"
+                    <Link
+                      href={`/jobs/${job.id}`}
+                      className="btn primary"
                       style={{ fontSize: 12, padding: '4px 10px' }}
                     >
-                      Open ↗
-                    </a>
+                      Open
+                    </Link>
                     <a
                       href={`/cv?jobId=${job.id}&title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}`}
                       target="_blank"

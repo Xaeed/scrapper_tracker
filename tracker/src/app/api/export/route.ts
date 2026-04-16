@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     keyword: sp.get('searchKeyword')?.trim() || '',
     dateFrom: sp.get('dateFrom') || '',
     dateTo: sp.get('dateTo') || '',
+    tag: sp.get('tag')?.trim() || undefined,
+    importMethod: sp.get('importMethod')?.trim() || undefined,
   })
 
   const jobs = await prisma.job.findMany({
@@ -30,7 +32,8 @@ export async function GET(req: NextRequest) {
   const HEADERS = [
     'id', 'linkedinId', 'title', 'company', 'location',
     'link', 'postedAt', 'searchKeyword', 'searchLocation',
-    'scrapedAt', 'status', 'notes', 'createdAt', 'updatedAt',
+    'scrapedAt', 'importMethod', 'tags', 'status', 'notes', 'description',
+    'createdAt', 'updatedAt',
   ] as const
 
   type JobKey = typeof HEADERS[number]

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { slugifyCvProfileName } from '@/lib/cvProfileSlug'
+import { isHtmlCvContent } from '@/lib/cvProfileValidation'
 
 /** Allow long n8n workflows (Vercel: set in dashboard too). Self-hosted: match nginx proxy_read_timeout. */
 export const maxDuration = 300
@@ -61,6 +64,14 @@ function maybeAppendBillingHint(fullContext: string): string {
   return ' If you use Claude (Anthropic), check API credits and billing (see server logs [cv/api]).'
 }
 
+type CvPostBody = {
+  job_description?: string
+  profile?: string
+  cv_profile_id?: string
+  custom_prompt?: string
+  base_cv_html?: string
+}
+
 export async function POST(req: NextRequest) {
   let body: unknown
   try {
@@ -68,6 +79,50 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
+
+  let n8nPayload: Record<string, unknown>
+  if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+    const b = body as CvPostBody
+    if (b.cv_profile_id && String(b.cv_profile_id).trim()) {
+      const id = String(b.cv_profile_id).trim()
+      const prof = await prisma.cvProfile.findUnique({ where: { id } })
+      if (!prof) {
+        return NextResponse.json({ error: 'CV profile not found' }, { status: 404 })
+      }
+      let html: string
+      try {
+        html = Buffer.from(prof.fileData, 'base64').toString('utf8')
+      } catch {
+        return NextResponse.json({ error: 'Stored CV file is invalid' }, { status: 500 })
+      }
+      if (!isHtmlCvContent(html)) {
+        return NextResponse.json(
+          {
+            error:
+              'This CV profile must be an HTML file (.html or .htm). PDF/Word are not supported for automated tailoring — convert to HTML or use a DevOps/Backend built-in profile.',
+          },
+          { status: 400 }
+        )
+      }
+      const jobDescription = typeof b.job_description === 'string' ? b.job_description : ''
+      if (!jobDescription.trim()) {
+        return NextResponse.json({ error: 'job_description is required' }, { status: 400 })
+      }
+      n8nPayload = {
+        job_description: jobDescription,
+        profile: slugifyCvProfileName(prof.name),
+        base_cv_html: html.trim(),
+      }
+      if (typeof b.custom_prompt === 'string' && b.custom_prompt.trim()) {
+        n8nPayload.custom_prompt = b.custom_prompt.trim()
+      }
+    } else {
+      n8nPayload = body as Record<string, unknown>
+    }
+  } else {
+    return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 })
+  }
+
   const webhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/job-description'
 
   let res: Response
@@ -79,7 +134,7 @@ export async function POST(req: NextRequest) {
     res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(n8nPayload),
       ...(signal ? { signal } : {}),
     })
   } catch (err) {

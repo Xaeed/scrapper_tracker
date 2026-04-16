@@ -14,7 +14,8 @@
     "db:generate": "prisma generate --schema=tracker/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --name init --schema=tracker/prisma/schema.prisma",
     "db:studio": "prisma studio --schema=tracker/prisma/schema.prisma",
-    "deploy": "rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'tracker/.next' --exclude 'data/' --exclude 'tracker/prisma/dev.db' --exclude 'logs/' . root@85.9.201.105:/opt/linkedin-job-scraper/ && ssh root@85.9.201.105 'cd /opt/linkedin-job-scraper && rm -rf tracker/node_modules && npm install && DATABASE_URL=file:./tracker/prisma/dev.db npx prisma migrate deploy --schema=tracker/prisma/schema.prisma && npm run tracker:build && pm2 reload all'"
+    "deploy": "rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'tracker/.next' --exclude 'data/' --exclude 'tracker/prisma/dev.db' --exclude 'logs/' . root@85.9.201.105:/opt/linkedin-job-scraper/ && ssh root@85.9.201.105 'cd /opt/linkedin-job-scraper && rm -rf tracker/node_modules && npm install && DATABASE_URL=file:./tracker/prisma/dev.db npx prisma migrate deploy --schema=tracker/prisma/schema.prisma && npm run tracker:build && pm2 reload all'",
+    "deploy:client": "rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'tracker/.next' --exclude 'data/' --exclude 'tracker/prisma/dev.db' --exclude 'logs/' --exclude '.env' --exclude 'config.js' . root@85.9.201.105:/opt/linkedin-job-scraper-client1/ && ssh root@85.9.201.105 'cd /opt/linkedin-job-scraper-client1 && rm -rf tracker/node_modules && npm install && DATABASE_URL=file:./tracker/prisma/dev.db npx prisma migrate deploy --schema=tracker/prisma/schema.prisma && npm run tracker:build && pm2 reload tracker-client1 && pm2 reload scraper-client1'"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

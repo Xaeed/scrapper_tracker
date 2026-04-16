@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
           searchKeyword: job.searchKeyword?.trim() ?? null,
           searchLocation: job.searchLocation?.trim() ?? null,
           scrapedAt: parseDate(job.scrapedAt),
+          importMethod: 'scraped',
           ...(linkedinId ? { linkedinId } : {}),
         },
       })
