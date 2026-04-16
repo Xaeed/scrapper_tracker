@@ -8,8 +8,8 @@ const logger = require('./logger');
 // ─── Run Labels for each schedule slot ──────────────────────────────────────
 
 const scheduleLabels = {
-  '0 9 * * *':  'Morning run (9:00 AM)',
-  '0 13 * * *': 'Afternoon run (1:00 PM)',
+  '0 6 * * *':  'Morning run (9:00 AM)',
+  '0 12 * * *': 'Afternoon run (1:00 PM)',
   '0 17 * * *': 'Evening run (5:00 PM)',
 };
 

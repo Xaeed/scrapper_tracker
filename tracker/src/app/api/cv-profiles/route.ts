@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isHtmlCvContent } from '@/lib/cvProfileValidation'
+import { requireAdmin } from '@/lib/requireAdmin'
+import { requireAuth } from '@/lib/requireAuth'
 
 const MAX_SIZE = 5 * 1024 * 1024
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const session = await requireAuth(req)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const rows = await prisma.cvProfile.findMany({
     orderBy: { name: 'asc' },
     select: { id: true, name: true, fileName: true, mimeType: true, createdAt: true, updatedAt: true },
@@ -13,6 +18,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await requireAdmin(req)
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   let formData: FormData
   try {
     formData = await req.formData()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSessionFromRequest } from '@/lib/auth'
 import { slugifyCvProfileName } from '@/lib/cvProfileSlug'
 import { isHtmlCvContent } from '@/lib/cvProfileValidation'
 
@@ -80,6 +81,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  const session = await getSessionFromRequest(req)
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const isAdmin = session.role === 'admin'
+
   let n8nPayload: Record<string, unknown>
   if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
     const b = body as CvPostBody
@@ -117,7 +124,10 @@ export async function POST(req: NextRequest) {
         n8nPayload.custom_prompt = b.custom_prompt.trim()
       }
     } else {
-      n8nPayload = body as Record<string, unknown>
+      n8nPayload = { ...(body as Record<string, unknown>) }
+      if (!isAdmin) {
+        delete n8nPayload.base_cv_html
+      }
     }
   } else {
     return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 })

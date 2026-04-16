@@ -9,7 +9,21 @@ interface Config {
   updatedAt: string
 }
 
+interface ScraperRunApi {
+  enabled: boolean
+  running: boolean
+  startedAt: string | null
+  finishedAt: string | null
+  lastExitCode: number | null
+  lastError: string | null
+}
+
 export default function ScraperConfigPage() {
+  const [runStatus, setRunStatus] = useState<ScraperRunApi | null>(null)
+  const [runLoading, setRunLoading] = useState(false)
+  const [runMessage, setRunMessage] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
+
   const [keywords, setKeywords] = useState<string[]>([])
   const [locations, setLocations] = useState<string[]>([])
   const [excludedCompanies, setExcludedCompanies] = useState<string[]>([])
@@ -34,6 +48,47 @@ export default function ScraperConfigPage() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function pollRun() {
+      try {
+        const res = await fetch('/api/admin/scraper', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as ScraperRunApi
+        if (!cancelled) setRunStatus(data)
+      } catch {
+        /* ignore */
+      }
+    }
+    pollRun()
+    const t = setInterval(pollRun, 3000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
+  }, [])
+
+  async function triggerManualRun() {
+    setRunLoading(true)
+    setRunError(null)
+    setRunMessage(null)
+    try {
+      const res = await fetch('/api/admin/scraper', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRunError(typeof data.error === 'string' ? data.error : 'Could not start scraper')
+        return
+      }
+      setRunMessage('Scraper started — this can take several minutes.')
+      const st = await fetch('/api/admin/scraper', { cache: 'no-store' }).then(r => r.json())
+      setRunStatus(st as ScraperRunApi)
+    } catch {
+      setRunError('Network error')
+    } finally {
+      setRunLoading(false)
+    }
+  }
 
   function addKeyword() {
     const val = kwInput.current?.value.trim()
@@ -85,6 +140,87 @@ export default function ScraperConfigPage() {
 
   return (
     <>
+      {runStatus && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 20,
+            borderColor: runStatus.running ? '#86efac' : 'var(--border)',
+            background: runStatus.running ? '#f0fdf4' : 'var(--surface)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: runStatus.enabled ? 8 : 0 }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Manual scraper run</h2>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <span
+                className={runStatus.running ? 'scraper-run-dot--active' : undefined}
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: runStatus.running ? '#22c55e' : '#94a3b8',
+                }}
+              />
+              <strong>{runStatus.running ? 'Running…' : 'Idle'}</strong>
+            </span>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={runLoading || runStatus.running || !runStatus.enabled}
+              onClick={() => void triggerManualRun()}
+              style={{ marginLeft: 'auto' }}
+            >
+              {runLoading ? 'Starting…' : runStatus.running ? 'Run in progress' : 'Run scraper now'}
+            </button>
+          </div>
+          {!runStatus.enabled && (
+            <p style={{ fontSize: 13, color: '#92400e', margin: 0, background: '#fffbeb', padding: 10, borderRadius: 6, border: '1px solid #fcd34d' }}>
+              Manual runs are disabled until you set <code style={{ fontSize: 12 }}>SCRAPER_ROOT</code> on the server to the absolute path of the project folder that contains <code style={{ fontSize: 12 }}>index.js</code> (same machine as the tracker). Scheduled cron runs on the scraper process are unchanged.
+            </p>
+          )}
+          {runStatus.enabled && (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+              Runs the same command as <code style={{ fontSize: 11 }}>node index.js --run-now</code> (does not wait for the cron schedule).
+              {runStatus.startedAt && runStatus.running && (
+                <span> Started {new Date(runStatus.startedAt).toLocaleString('en-GB')}.</span>
+              )}
+            </p>
+          )}
+          {runMessage && (
+            <p style={{ fontSize: 13, color: '#166534', marginTop: 10, marginBottom: 0 }}>{runMessage}</p>
+          )}
+          {runError && (
+            <p style={{ fontSize: 13, color: '#991b1b', marginTop: 10, marginBottom: 0 }}>{runError}</p>
+          )}
+          {runStatus.enabled && !runStatus.running && runStatus.finishedAt && (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
+              Last finished: {new Date(runStatus.finishedAt).toLocaleString('en-GB')}
+              {runStatus.lastExitCode != null && (
+                <span> · Exit code: {runStatus.lastExitCode}</span>
+              )}
+            </p>
+          )}
+          {runStatus.lastError && !runStatus.running && (
+            <pre
+              style={{
+                marginTop: 10,
+                fontSize: 11,
+                padding: 10,
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 6,
+                maxHeight: 120,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {runStatus.lastError}
+            </pre>
+          )}
+        </div>
+      )}
+
       <div className="top-bar">
         <h1 style={{ margin: 0 }}>Scraper Config</h1>
         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>

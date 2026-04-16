@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { DEFAULT_CV_TAILORING_PROMPT } from '@/lib/defaultCvTailoringPrompt'
 
 interface Props {
   title?: string
@@ -25,12 +26,20 @@ interface SavedProfile {
 type ProfileSelection = 'devops' | 'backend' | string
 
 export default function CvForm({ title, company, jobId }: Props) {
+  const [isAdmin, setIsAdmin] = useState(false)
   const [profile, setProfile] = useState<ProfileSelection>('devops')
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([])
   const [description, setDescription] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
   const [loadingDescription, setLoadingDescription] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => setIsAdmin(data.user?.role === 'admin'))
+      .catch(() => setIsAdmin(false))
+  }, [])
 
   useEffect(() => {
     fetch('/api/cv-profiles')
@@ -54,6 +63,7 @@ export default function CvForm({ title, company, jobId }: Props) {
       .finally(() => setLoadingDescription(false))
   }, [jobId])
   const [error, setError] = useState<string | null>(null)
+  const [defaultPromptCopied, setDefaultPromptCopied] = useState(false)
   const [saveWarning, setSaveWarning] = useState<string | null>(null)
   const [result, setResult] = useState<CvResult | null>(null)
   const [saved, setSaved] = useState(false)
@@ -168,6 +178,38 @@ export default function CvForm({ title, company, jobId }: Props) {
     }
   }
 
+  async function copyDefaultAtsPrompt() {
+    try {
+      await navigator.clipboard.writeText(DEFAULT_CV_TAILORING_PROMPT)
+      setDefaultPromptCopied(true)
+      setTimeout(() => setDefaultPromptCopied(false), 2500)
+    } catch {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = DEFAULT_CV_TAILORING_PROMPT
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        setDefaultPromptCopied(true)
+        setTimeout(() => setDefaultPromptCopied(false), 2500)
+      } catch {
+        window.alert('Could not copy automatically. Open “Show default prompt” below and copy manually.')
+      }
+    }
+  }
+
+  function appendDefaultToCustomPrompt() {
+    setCustomPrompt(prev => {
+      const d = DEFAULT_CV_TAILORING_PROMPT
+      const p = prev.trim()
+      if (!p) return d
+      return `${p}\n\n${d}`
+    })
+  }
+
   function downloadCv() {
     if (!result) return
     const blob = new Blob([result.cv_html], { type: 'text/html' })
@@ -211,12 +253,16 @@ export default function CvForm({ title, company, jobId }: Props) {
                   </option>
                 ))}
               </select>
-              <Link href="/cv/profiles" className="btn" style={{ fontSize: 12, padding: '4px 10px' }}>
-                Manage profiles…
-              </Link>
+              {isAdmin && (
+                <Link href="/cv/profiles" className="btn" style={{ fontSize: 12, padding: '4px 10px' }}>
+                  Manage profiles…
+                </Link>
+              )}
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
-              Custom profiles use HTML files you upload under Manage profiles. Built-in templates use the server-side n8n paths.
+              {isAdmin
+                ? 'Custom profiles use HTML files you upload under Manage profiles. Built-in templates use the server-side n8n paths.'
+                : 'Custom profiles are uploaded by an administrator; everyone can use them here. Built-in templates use the server-side n8n paths.'}
             </p>
           </div>
 
@@ -248,13 +294,58 @@ export default function CvForm({ title, company, jobId }: Props) {
 
           <div className="field">
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
-              Custom Prompt{' '}
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — overrides the predefined CV tailoring prompt)</span>
+              Custom prompt{' '}
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                (optional — overrides the default ATS-friendly tailoring instructions)
+              </span>
             </label>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+              Leave empty to use the built-in default. To tweak it, copy the default text (or append it into the box), edit, then generate — profile, job description, and base CV are still added automatically by the workflow.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 12, padding: '5px 12px' }}
+                onClick={() => void copyDefaultAtsPrompt()}
+              >
+                {defaultPromptCopied ? 'Copied ✓' : 'Copy default ATS prompt'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 12, padding: '5px 12px' }}
+                onClick={appendDefaultToCustomPrompt}
+              >
+                Append default to field
+              </button>
+            </div>
+            <details style={{ marginBottom: 12, fontSize: 13 }}>
+              <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 500 }}>
+                Show default prompt (read-only reference)
+              </summary>
+              <pre
+                style={{
+                  marginTop: 10,
+                  padding: 12,
+                  background: 'var(--bg-muted, #f8fafc)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  maxHeight: 220,
+                  overflow: 'auto',
+                }}
+              >
+                {DEFAULT_CV_TAILORING_PROMPT}
+              </pre>
+            </details>
             <textarea
               value={customPrompt}
               onChange={e => setCustomPrompt(e.target.value)}
-              placeholder="Leave empty to use the default ATS-optimisation prompt. If filled, your prompt replaces it — the job description and base CV HTML are still appended automatically."
+              placeholder="Optional — paste and edit the default prompt above, or write your own. Job description and base CV HTML are appended automatically after this text."
               style={{
                 width: '100%',
                 minHeight: 120,

@@ -28,9 +28,11 @@ export async function middleware(req: NextRequest) {
   try {
     const { payload } = await jwtVerify(token, SECRET)
 
-    // Admin-only paths
+    // Admin-only paths (CV profile *management* UI; list/use profiles is allowed to all logged-in users via API)
     if (
-      (pathname.startsWith('/admin') || pathname.startsWith('/api/users')) &&
+      (pathname.startsWith('/admin') ||
+        pathname.startsWith('/api/users') ||
+        pathname.startsWith('/cv/profiles')) &&
       payload.role !== 'admin'
     ) {
       return NextResponse.redirect(new URL('/jobs', req.url))

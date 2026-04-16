@@ -23,6 +23,16 @@ model ScraperConfig {
   updatedAt         DateTime @updatedAt
 }
 
+// Singleton row id=1: manual run progress for admin UI
+model ScraperRunState {
+  id           Int       @id @default(1)
+  running      Boolean   @default(false)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  lastExitCode Int?
+  lastError    String?
+}
+
 model CvProfile {
   id        String   @id @default(cuid())
   name      String   @unique

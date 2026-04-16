@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdmin } from '@/lib/requireAdmin'
+import { requireAuth } from '@/lib/requireAuth'
 
 type Ctx = { params: { id: string } }
 
-/** Serve uploaded CV (inline) for preview */
-export async function GET(_req: NextRequest, { params }: Ctx) {
+/** Serve uploaded CV (inline) for preview — any logged-in user */
+export async function GET(req: NextRequest, { params }: Ctx) {
+  const session = await requireAuth(req)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const prof = await prisma.cvProfile.findUnique({
     where: { id: params.id },
     select: { fileName: true, fileData: true, mimeType: true },
@@ -21,7 +26,10 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   })
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+export async function DELETE(req: NextRequest, { params }: Ctx) {
+  const session = await requireAdmin(req)
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   try {
     await prisma.cvProfile.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })

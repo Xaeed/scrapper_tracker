@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionFromRequest, hashPassword } from '@/lib/auth'
-
-async function requireAdmin(req: NextRequest) {
-  const session = await getSessionFromRequest(req)
-  if (!session || session.role !== 'admin') return null
-  return session
-}
+import { hashPassword } from '@/lib/auth'
+import { requireAdmin } from '@/lib/requireAdmin'
 
 export async function GET(req: NextRequest) {
   const session = await requireAdmin(req)
