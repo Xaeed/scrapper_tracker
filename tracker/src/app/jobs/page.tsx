@@ -10,6 +10,7 @@ interface Job {
   location: string | null
   link: string
   postedAt: string | null
+  scrapedAt: string | null
   searchKeyword: string | null
   status: string
   notes: string | null
@@ -308,9 +309,15 @@ export default function JobsPage() {
                   <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 140 }}>{formatTagsJson(job.tags)}</td>
                   <td style={{ fontSize: 12 }}>
                     {job.importMethod === 'manual' ? (
-                      <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>Manual</span>
+                      <>
+                        <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>Manual</span>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, whiteSpace: 'nowrap' }}>{fmt(job.createdAt)}</div>
+                      </>
                     ) : (
-                      <span className="badge" style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>Scraped</span>
+                      <>
+                        <span className="badge" style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>Scraped</span>
+                        {job.scrapedAt && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, whiteSpace: 'nowrap' }}>{fmt(job.scrapedAt)}</div>}
+                      </>
                     )}
                   </td>
                   <td>

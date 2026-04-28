@@ -217,11 +217,12 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             {[
               ['LinkedIn ID', job.linkedinId],
               ['Posted', fmt(job.postedAt)],
-              ['Scraped at', fmt(job.scrapedAt)],
+              job.importMethod === 'manual'
+                ? ['Added at', fmt(job.createdAt)]
+                : ['Scraped at', fmt(job.scrapedAt)],
               ['Search keyword', job.searchKeyword],
               ['Search location', job.searchLocation],
               ['Import method', job.importMethod === 'manual' ? 'manual' : 'scraped'],
-              ['Created in app', fmt(job.createdAt)],
               ['Last updated', fmt(job.updatedAt)],
             ].map(([k, v]) => (
               <div key={String(k)} className="detail-row">

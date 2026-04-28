@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
   if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 })
 
   try {
+    const now = new Date()
     const job = await prisma.job.create({
       data: {
         link: link.trim(),
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
         location: location?.trim() || null,
         description: description?.trim() || null,
         importMethod: 'manual',
+        postedAt: now,
       },
     })
     return NextResponse.json(job, { status: 201 })

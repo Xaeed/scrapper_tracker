@@ -37,9 +37,20 @@ model CvProfile {
   id        String   @id @default(cuid())
   name      String   @unique
   fileName  String
-  fileData  String // base64
+  fileData  String // base64 HTML (used for CV tailoring pipeline)
   mimeType  String
+  pdfName   String? // original uploaded PDF filename
+  pdfData   String? // base64 encoded source PDF
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Singleton (id=1): the HTML CV used as style/layout reference for PDF-to-HTML conversion
+model SampleCv {
+  id        Int      @id @default(1)
+  fileName  String
+  fileData  String // base64 HTML
+  mimeType  String   @default("text/html")
   updatedAt DateTime @updatedAt
 }
 
