@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth'
 
-const DEFAULT_KEYWORDS = [
+export interface ConfigItem { label: string; enabled: boolean }
+
+const DEFAULT_KEYWORDS: ConfigItem[] = [
   'DevOps Engineer',
   'Platform Engineer',
   'Cloud Infrastructure Engineer',
@@ -18,22 +20,27 @@ const DEFAULT_KEYWORDS = [
   'Backend Engineer .NET',
   '.NET Developer',
   'Node.js Developer',
-]
+].map(label => ({ label, enabled: true }))
 
-const DEFAULT_LOCATIONS = [
-  'Germany',
-  'Netherlands',
-  'France',
-  'Luxembourg',
-  'Sweden',
-  'Denmark',
-  'Norway',
-  'Austria',
-  'Belgium',
-  'Poland',
-  'Portugal',
-  'United Kingdom',
-]
+const DEFAULT_LOCATIONS: ConfigItem[] = [
+  'Germany', 'Netherlands', 'France', 'Luxembourg', 'Sweden',
+  'Denmark', 'Norway', 'Austria', 'Belgium', 'Poland', 'Portugal', 'United Kingdom',
+].map(label => ({ label, enabled: true }))
+
+const DEFAULT_JOB_TYPES = ['F', 'C']
+const DEFAULT_WORKPLACE_TYPES = ['1', '2', '3']
+
+function toItems(raw: unknown): ConfigItem[] {
+  if (!Array.isArray(raw)) return []
+  if (raw.length === 0) return []
+  // Old format: string[] — migrate on-the-fly
+  if (typeof raw[0] === 'string') {
+    return (raw as string[]).map(label => ({ label, enabled: true }))
+  }
+  return (raw as ConfigItem[]).filter(
+    x => typeof x?.label === 'string' && typeof x?.enabled === 'boolean'
+  )
+}
 
 async function getOrCreateConfig() {
   let row = await prisma.scraperConfig.findUnique({ where: { id: 1 } })
@@ -44,13 +51,34 @@ async function getOrCreateConfig() {
         keywords: JSON.stringify(DEFAULT_KEYWORDS),
         locations: JSON.stringify(DEFAULT_LOCATIONS),
         excludedCompanies: JSON.stringify([]),
+        jobTypes: JSON.stringify(DEFAULT_JOB_TYPES),
+        workplaceTypes: JSON.stringify(DEFAULT_WORKPLACE_TYPES),
       },
     })
   }
+
+  const keywords = toItems(JSON.parse(row.keywords))
+  const locations = toItems(JSON.parse(row.locations))
+
+  // Persist migration if old string[] format was detected
+  const needsMigration =
+    JSON.parse(row.keywords).length > 0 && typeof JSON.parse(row.keywords)[0] === 'string'
+  if (needsMigration) {
+    await prisma.scraperConfig.update({
+      where: { id: 1 },
+      data: {
+        keywords: JSON.stringify(keywords),
+        locations: JSON.stringify(locations),
+      },
+    })
+  }
+
   return {
-    keywords: JSON.parse(row.keywords) as string[],
-    locations: JSON.parse(row.locations) as string[],
+    keywords,
+    locations,
     excludedCompanies: JSON.parse(row.excludedCompanies) as string[],
+    jobTypes: JSON.parse(row.jobTypes) as string[],
+    workplaceTypes: JSON.parse(row.workplaceTypes) as string[],
     updatedAt: row.updatedAt,
   }
 }
@@ -68,54 +96,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: { keywords?: unknown; locations?: unknown; excludedCompanies?: unknown }
+  let body: { keywords?: unknown; locations?: unknown; excludedCompanies?: unknown; jobTypes?: unknown; workplaceTypes?: unknown }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const keywords = body.keywords
-  const locations = body.locations
-  const excludedCompanies = body.excludedCompanies ?? []
+  const keywords = toItems(body.keywords)
+  const locations = toItems(body.locations)
+  const excludedCompanies = Array.isArray(body.excludedCompanies)
+    ? (body.excludedCompanies as unknown[]).filter(c => typeof c === 'string')
+    : []
 
-  if (
-    !Array.isArray(keywords) || keywords.some(k => typeof k !== 'string' || !k.trim()) ||
-    !Array.isArray(locations) || locations.some(l => typeof l !== 'string' || !l.trim()) ||
-    !Array.isArray(excludedCompanies) || excludedCompanies.some((c: unknown) => typeof c !== 'string')
-  ) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
-  }
+  const VALID_JOB_TYPES = new Set(['F', 'C', 'P', 'T', 'I', 'V'])
+  const VALID_WORKPLACE_TYPES = new Set(['1', '2', '3'])
 
-  const clean = {
-    keywords: (keywords as string[]).map(k => k.trim()).filter(Boolean),
-    locations: (locations as string[]).map(l => l.trim()).filter(Boolean),
-    excludedCompanies: (excludedCompanies as string[]).map(c => c.trim()).filter(Boolean),
-  }
+  const jobTypes = Array.isArray(body.jobTypes)
+    ? (body.jobTypes as unknown[]).filter(t => typeof t === 'string' && VALID_JOB_TYPES.has(t as string)) as string[]
+    : DEFAULT_JOB_TYPES
 
-  if (clean.keywords.length === 0 || clean.locations.length === 0) {
+  const workplaceTypes = Array.isArray(body.workplaceTypes)
+    ? (body.workplaceTypes as unknown[]).filter(t => typeof t === 'string' && VALID_WORKPLACE_TYPES.has(t as string)) as string[]
+    : DEFAULT_WORKPLACE_TYPES
+
+  if (keywords.length === 0 || locations.length === 0) {
     return NextResponse.json({ error: 'Must have at least one keyword and one location' }, { status: 400 })
+  }
+  if (jobTypes.length === 0 || workplaceTypes.length === 0) {
+    return NextResponse.json({ error: 'Must select at least one job type and one workplace type' }, { status: 400 })
   }
 
   const row = await prisma.scraperConfig.upsert({
     where: { id: 1 },
     update: {
-      keywords: JSON.stringify(clean.keywords),
-      locations: JSON.stringify(clean.locations),
-      excludedCompanies: JSON.stringify(clean.excludedCompanies),
+      keywords: JSON.stringify(keywords),
+      locations: JSON.stringify(locations),
+      excludedCompanies: JSON.stringify(excludedCompanies),
+      jobTypes: JSON.stringify(jobTypes),
+      workplaceTypes: JSON.stringify(workplaceTypes),
     },
     create: {
       id: 1,
-      keywords: JSON.stringify(clean.keywords),
-      locations: JSON.stringify(clean.locations),
-      excludedCompanies: JSON.stringify(clean.excludedCompanies),
+      keywords: JSON.stringify(keywords),
+      locations: JSON.stringify(locations),
+      excludedCompanies: JSON.stringify(excludedCompanies),
+      jobTypes: JSON.stringify(jobTypes),
+      workplaceTypes: JSON.stringify(workplaceTypes),
     },
   })
 
   return NextResponse.json({
-    keywords: JSON.parse(row.keywords) as string[],
-    locations: JSON.parse(row.locations) as string[],
+    keywords: JSON.parse(row.keywords) as ConfigItem[],
+    locations: JSON.parse(row.locations) as ConfigItem[],
     excludedCompanies: JSON.parse(row.excludedCompanies) as string[],
+    jobTypes: JSON.parse(row.jobTypes) as string[],
+    workplaceTypes: JSON.parse(row.workplaceTypes) as string[],
     updatedAt: row.updatedAt,
   })
 }

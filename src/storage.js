@@ -98,10 +98,16 @@ async function fetchRemoteConfig() {
     if (!res.ok) return null;
     const data = await res.json();
     if (Array.isArray(data.keywords) && Array.isArray(data.locations)) {
+      // Filter to only enabled items; support both {label,enabled} and plain string formats
+      const toActive = arr => arr
+        .filter(x => typeof x === 'string' ? true : x.enabled !== false)
+        .map(x => typeof x === 'string' ? x : x.label);
       return {
-        keywords: data.keywords,
-        locations: data.locations,
+        keywords: toActive(data.keywords),
+        locations: toActive(data.locations),
         excludedCompanies: Array.isArray(data.excludedCompanies) ? data.excludedCompanies : [],
+        jobTypes: Array.isArray(data.jobTypes) && data.jobTypes.length ? data.jobTypes : ['F', 'C'],
+        workplaceTypes: Array.isArray(data.workplaceTypes) && data.workplaceTypes.length ? data.workplaceTypes : ['1', '2', '3'],
       };
     }
   } catch {

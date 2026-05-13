@@ -25,6 +25,13 @@ export default function AdminPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
+  const [changePwUser, setChangePwUser] = useState<User | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [changePwError, setChangePwError] = useState<string | null>(null)
+  const [changePwSuccess, setChangePwSuccess] = useState(false)
+  const [changingPw, setChangingPw] = useState(false)
+
   async function loadUsers() {
     const [meRes, usersRes] = await Promise.all([
       fetch('/api/auth/me').then(r => r.json()),
@@ -56,6 +63,33 @@ export default function AdminPage() {
       setFormError('Network error')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setChangePwError(null)
+    setChangePwSuccess(false)
+    if (newPassword !== confirmPassword) {
+      setChangePwError('Passwords do not match')
+      return
+    }
+    setChangingPw(true)
+    try {
+      const res = await fetch(`/api/users/${changePwUser!.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setChangePwError(data.error || 'Failed'); return }
+      setChangePwSuccess(true)
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch {
+      setChangePwError('Network error')
+    } finally {
+      setChangingPw(false)
     }
   }
 
@@ -137,7 +171,13 @@ export default function AdminPage() {
                 <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>
                   {new Date(u.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </td>
-                <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                <td style={{ padding: '8px 12px', textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => { setChangePwUser(u); setNewPassword(''); setConfirmPassword(''); setChangePwError(null); setChangePwSuccess(false) }}
+                    style={{ fontSize: 12, padding: '3px 10px' }}
+                  >
+                    Change Password
+                  </button>
                   <button
                     onClick={() => handleDelete(u.id, u.username)}
                     disabled={me?.username === u.username}
@@ -154,6 +194,40 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+      {changePwUser && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: 420, margin: 16 }}>
+            <h2 style={{ marginTop: 0 }}>Change Password — {changePwUser.username}</h2>
+            <form onSubmit={handleChangePassword}>
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>New Password (min 6 chars)</label>
+                <input
+                  type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                  required minLength={6} style={{ width: '100%' }} autoFocus
+                />
+              </div>
+              <div className="field" style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Confirm Password</label>
+                <input
+                  type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  required minLength={6} style={{ width: '100%' }}
+                />
+              </div>
+              {changePwError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{changePwError}</div>}
+              {changePwSuccess && <div className="alert alert-success" style={{ marginBottom: 12 }}>Password updated successfully.</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" className="btn primary" disabled={changingPw}>
+                  {changingPw ? 'Saving…' : 'Update Password'}
+                </button>
+                <button type="button" onClick={() => setChangePwUser(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   )
 }

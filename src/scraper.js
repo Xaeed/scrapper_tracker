@@ -20,12 +20,15 @@ function randomDelay(range) {
 }
 
 function buildSearchUrl(keyword, location) {
-  const { jobType, workType, timeRange } = config.linkedInFilters;
+  const { jobTypes, workplaceTypes, jobType, workType, timeRange } = config.linkedInFilters;
+  // Support both new array fields and legacy single-value fields
+  const jt = (jobTypes && jobTypes.length ? jobTypes : jobType ? [jobType] : ['F', 'C']).join(',');
+  const wt = (workplaceTypes && workplaceTypes.length ? workplaceTypes : workType ? [workType] : ['1', '2', '3']).join(',');
   const params = new URLSearchParams({
     keywords: keyword,
     location: location,
-    f_JT: jobType,
-    f_WT: workType,
+    f_JT: jt,
+    f_WT: wt,
     f_TPR: timeRange,
     position: '1',
     pageNum: '0',

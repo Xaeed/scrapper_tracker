@@ -42,13 +42,14 @@ module.exports = {
   ],
 
   // ─── LinkedIn Filter Codes ──────────────────────────────────────────────────
-  // f_JT=C      → Contract job type
-  // f_WT=2      → Remote
-  // f_TPR=r86400 → Posted in last 24 hours
+  // f_JT  → Job type:      F=Full-time, C=Contract, P=Part-time, T=Temporary, I=Internship
+  // f_WT  → Workplace:     1=On-site, 2=Remote, 3=Hybrid
+  // f_TPR → Time range:    r86400=last 24h
+  // These defaults are overridden at runtime by the tracker DB config when TRACKER_URL is set.
   linkedInFilters: {
-    jobType: 'C',            // Contract
-    workType: '2',           // Remote
-    timeRange: 'r86400',     // Last 24 hours
+    jobTypes: ['F', 'C'],         // Full-time + Contract
+    workplaceTypes: ['1', '2', '3'], // On-site + Remote + Hybrid
+    timeRange: 'r86400',
   },
 
   // ─── Scrape Schedule (node-cron syntax) ────────────────────────────────────

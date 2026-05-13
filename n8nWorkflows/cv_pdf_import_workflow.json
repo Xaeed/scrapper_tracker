@@ -1,0 +1,135 @@
+{
+  "name": "CV PDF Import - PDF to HTML via Claude",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cv-pdf-import",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pdf1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst name = (body.name || '').toString().trim();\nconst pdfBase64 = (body.pdf_base64 || '').toString().trim();\nconst pdfName = (body.pdf_name || 'cv.pdf').toString().trim();\nconst sampleCvHtml = (body.sample_cv_html || '').toString().trim();\n\nif (!name) throw new Error('name is required in request body');\nif (!pdfBase64) throw new Error('pdf_base64 is required in request body');\nif (pdfBase64.length < 100) throw new Error('pdf_base64 is too short to be a valid PDF');\n\nreturn [{ json: { name, pdf_base64: pdfBase64, pdf_name: pdfName, sample_cv_html: sampleCvHtml } }];"
+      },
+      "id": "pdf2",
+      "name": "Validate Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const name = $json.name;\nconst pdfBase64 = $json.pdf_base64;\nconst pdfName = $json.pdf_name;\nconst sampleCvHtml = $json.sample_cv_html || '';\n\nconst systemPrompt = `You are an expert CV writer and HTML developer. Your job is to convert the content of a candidate's PDF CV into a single, complete, professional HTML document.\n\nSTRICT OUTPUT RULES:\n- Your ENTIRE response must be the HTML document and nothing else.\n- Start your response with <!DOCTYPE html> — no text, no preamble, nothing before it.\n- End your response with </html> — no text, no analysis, no change log, nothing after it.\n- No markdown, no code fences, no explanations, no commentary anywhere in the response.\n- Include <html>, <head>, <style>, and <body> tags.\n- Use internal CSS only (inside <style>). No external libraries, no CDN links, no @import.\n- Use semantic HTML: <section>, <article>, <header>, <h1>, <h2>, <h3>, <ul>, <li>.\n- Do NOT invent, fabricate, or alter any factual content from the CV (names, companies, dates, skills, certifications).\n- Do NOT copy any text content from the sample template — use only its structure and style.`;\n\nlet userPrompt;\n\nif (sampleCvHtml) {\n  userPrompt = `The candidate's CV is the PDF document attached above.\\n\\nA SAMPLE CV HTML TEMPLATE is provided below. Use it exclusively as your style and layout reference:\\n- Replicate its exact CSS, class names, color scheme, fonts, spacing, section order, and HTML structure\\n- Replace every piece of sample content with the candidate's actual information from the PDF\\n- If the PDF contains a section not present in the sample (e.g. Projects, Languages), add it styled consistently with the existing sections\\n- If the sample contains a section with no matching content in the PDF, omit it\\n- The output must look like a natural instance of the sample template, not a modified version\\n\\nSAMPLE CV TEMPLATE (style reference — do NOT copy its content):\\n\\n${sampleCvHtml}\\n\\nOutput the complete HTML CV for the candidate above, styled identically to the sample.`;\n} else {\n  userPrompt = `The PDF CV is attached as the document above. Convert ALL of its content into a professional HTML CV.\\n\\nDESIGN REQUIREMENTS (apply these since no sample template was provided):\\n- Modern, clean, professional — A4 print-friendly, max-width 860px\\n- Color scheme: headings #1e293b, accent #2563eb, muted #64748b, header band #f8fafc\\n- Section headings: 11px uppercase, letter-spacing 0.08em, accent color with 2px bottom border\\n- Name: 28px bold; job title: 15px muted; contact row: 13px items separated by \" · \"\\n- Body: system-ui sans-serif, 13.5px, line-height 1.55\\n- Company names: 14px bold; dates: 12px right-aligned muted\\n- Bullet points: margin-left 18px, line-height 1.5; 20px spacing between sections\\n- ATS-friendly: no layout tables, no multi-column main body\\n- Print @media: 12px font, black links, page-break-inside avoid on sections\\n\\nOutput only the complete HTML file.`;\n}\n\nreturn [{\n  json: {\n    name,\n    pdf_base64: pdfBase64,\n    pdf_name: pdfName,\n    has_sample: !!sampleCvHtml,\n    anthropic_model: 'claude-sonnet-4-6',\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt\n  }\n}];"
+      },
+      "id": "pdf3",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.anthropic_model, max_tokens: 8192, system: $json.system_prompt, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: $json.pdf_base64 } }, { type: 'text', text: $json.user_prompt }] }] }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "pdf4",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1020, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Validate Inputs').item.json;\nconst content = $json.content || [];\n\nif (!Array.isArray(content) || content.length === 0) {\n  const stopReason = $json.stop_reason || 'unknown';\n  throw new Error(`Claude returned no content blocks (stop_reason: ${stopReason}). Check API credits or model availability.`);\n}\n\nconst rawText = content\n  .filter(part => part.type === 'text')\n  .map(part => part.text)\n  .join('\\n')\n  .trim();\n\nif (!rawText) throw new Error('Claude returned an empty text response');\n\n// Strip markdown code fences\nlet html = rawText\n  .replace(/^```html\\s*/i, '')\n  .replace(/^```\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\n// Extract only the HTML document — discard any preamble or postamble Claude added\nconst htmlStart = html.search(/<!doctype\\s+html|<html[\\s>]/i);\nconst htmlEnd = html.lastIndexOf('</html>');\nif (htmlStart !== -1 && htmlEnd !== -1 && htmlEnd > htmlStart) {\n  html = html.slice(htmlStart, htmlEnd + 7).trim();\n}\n\nif (!html.toLowerCase().includes('<html') && !html.toLowerCase().includes('<!doctype')) {\n  throw new Error('Could not extract a valid HTML document from Claude response. Check the prompt or try again.');\n}\n\nreturn [{\n  json: {\n    success: true,\n    name: meta.name,\n    pdf_name: meta.pdf_name,\n    html\n  }\n}];"
+      },
+      "id": "pdf5",
+      "name": "Extract HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: $json.success, name: $json.name, pdf_name: $json.pdf_name, html: $json.html } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "pdf6",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1540, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const errBody = $json;\nlet message = 'Claude API error';\n\nif (errBody && typeof errBody === 'object') {\n  const e = errBody.error;\n  if (e && typeof e === 'object' && typeof e.message === 'string') {\n    message = `Claude API error: ${e.message}`;\n  } else if (typeof errBody.message === 'string') {\n    message = errBody.message;\n  } else if (typeof errBody.statusCode === 'number') {\n    message = `Claude API returned HTTP ${errBody.statusCode}`;\n  }\n}\n\nreturn [{ json: { success: false, error: message } }];"
+      },
+      "id": "pdf7",
+      "name": "Handle Claude API Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 440]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: $json.error } }}",
+        "options": { "responseCode": 502 }
+      },
+      "id": "pdf8",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1540, 440]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate Inputs", "type": "main", "index": 0 }]]
+    },
+    "Validate Inputs": {
+      "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Claude Prompt": {
+      "main": [[{ "node": "Claude API", "type": "main", "index": 0 }]]
+    },
+    "Claude API": {
+      "main": [
+        [{ "node": "Extract HTML", "type": "main", "index": 0 }],
+        [{ "node": "Handle Claude API Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract HTML": {
+      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+    },
+    "Handle Claude API Error": {
+      "main": [[{ "node": "Respond Error", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

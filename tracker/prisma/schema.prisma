@@ -17,9 +17,11 @@ model User {
 
 model ScraperConfig {
   id                Int      @id @default(1)
-  keywords          String // JSON-encoded String[]
-  locations         String // JSON-encoded String[]
+  keywords          String // JSON-encoded {label:string,enabled:boolean}[]
+  locations         String // JSON-encoded {label:string,enabled:boolean}[]
   excludedCompanies String   @default("[]") // JSON-encoded String[]
+  jobTypes          String   @default("[\"F\",\"C\"]") // JSON-encoded String[] — F,C,P,T,I,V
+  workplaceTypes    String   @default("[\"1\",\"2\",\"3\"]") // JSON-encoded String[] — 1=onsite,2=remote,3=hybrid
   updatedAt         DateTime @updatedAt
 }
 
