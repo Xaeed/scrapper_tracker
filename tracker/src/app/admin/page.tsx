@@ -93,6 +93,19 @@ export default function AdminPage() {
     }
   }
 
+  async function handleRoleChange(u: User) {
+    const newRole = u.role === 'admin' ? 'user' : 'admin'
+    if (!confirm(`Change ${u.username}'s role from ${u.role} to ${newRole}?`)) return
+    const res = await fetch(`/api/users/${u.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole }),
+    })
+    const data = await res.json()
+    if (!res.ok) { alert(data.error || 'Failed'); return }
+    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, role: newRole } : x))
+  }
+
   async function handleDelete(id: string, uname: string) {
     if (!confirm(`Delete user "${uname}"?`)) return
     const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
@@ -172,6 +185,14 @@ export default function AdminPage() {
                   {new Date(u.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </td>
                 <td style={{ padding: '8px 12px', textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => handleRoleChange(u)}
+                    disabled={me?.username === u.username}
+                    title={u.role === 'admin' ? 'Demote to user' : 'Promote to admin'}
+                    style={{ fontSize: 12, padding: '3px 10px', color: u.role === 'admin' ? '#92400e' : '#1d4ed8', borderColor: u.role === 'admin' ? '#fcd34d' : '#bfdbfe', background: u.role === 'admin' ? '#fffbeb' : '#eff6ff' }}
+                  >
+                    {u.role === 'admin' ? '↓ User' : '↑ Admin'}
+                  </button>
                   <button
                     onClick={() => { setChangePwUser(u); setNewPassword(''); setConfirmPassword(''); setChangePwError(null); setChangePwSuccess(false) }}
                     style={{ fontSize: 12, padding: '3px 10px' }}

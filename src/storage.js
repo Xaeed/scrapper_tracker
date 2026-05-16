@@ -108,6 +108,7 @@ async function fetchRemoteConfig() {
         excludedCompanies: Array.isArray(data.excludedCompanies) ? data.excludedCompanies : [],
         jobTypes: Array.isArray(data.jobTypes) && data.jobTypes.length ? data.jobTypes : ['F', 'C'],
         workplaceTypes: Array.isArray(data.workplaceTypes) && data.workplaceTypes.length ? data.workplaceTypes : ['1', '2', '3'],
+        timeRange: typeof data.timeRange === 'string' && data.timeRange ? data.timeRange : 'r86400',
       };
     }
   } catch {

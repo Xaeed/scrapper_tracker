@@ -1,0 +1,1 @@
+ALTER TABLE "ScraperRunState" ADD COLUMN "pid" INTEGER;

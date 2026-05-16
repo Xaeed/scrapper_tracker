@@ -56,6 +56,8 @@ export default function JobsPage() {
   const [importMethod, setImportMethod] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [scrapedFrom, setScrapedFrom] = useState('')
+  const [scrapedTo, setScrapedTo] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
@@ -74,11 +76,13 @@ export default function JobsPage() {
     if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
+    if (scrapedFrom) p.set('scrapedFrom', scrapedFrom)
+    if (scrapedTo) p.set('scrapedTo', scrapedTo)
     p.set('sortBy', sortBy)
     p.set('sortDir', sortDir)
     p.set('page', String(page))
     return p.toString()
-  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo, sortBy, sortDir, page])
+  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo, scrapedFrom, scrapedTo, sortBy, sortDir, page])
 
   const exportUrl = useCallback(() => {
     const p = new URLSearchParams()
@@ -89,8 +93,10 @@ export default function JobsPage() {
     if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
+    if (scrapedFrom) p.set('scrapedFrom', scrapedFrom)
+    if (scrapedTo) p.set('scrapedTo', scrapedTo)
     return `/api/export?${p.toString()}`
-  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo])
+  }, [search, status, keyword, tag, importMethod, dateFrom, dateTo, scrapedFrom, scrapedTo])
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -149,7 +155,7 @@ export default function JobsPage() {
   }
 
   async function handleDeleteAll() {
-    const hasFilters = !!(search || status || keyword || tag || importMethod || dateFrom || dateTo)
+    const hasFilters = !!(search || status || keyword || tag || importMethod || dateFrom || dateTo || scrapedFrom || scrapedTo)
     const label = hasFilters ? `${total} filtered job${total !== 1 ? 's' : ''}` : `all ${total} job${total !== 1 ? 's' : ''}`
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return
 
@@ -161,6 +167,8 @@ export default function JobsPage() {
     if (importMethod) p.set('importMethod', importMethod)
     if (dateFrom) p.set('dateFrom', dateFrom)
     if (dateTo) p.set('dateTo', dateTo)
+    if (scrapedFrom) p.set('scrapedFrom', scrapedFrom)
+    if (scrapedTo) p.set('scrapedTo', scrapedTo)
 
     setDeletingAll(true)
     await fetch(`/api/jobs?${p.toString()}`, { method: 'DELETE' })
@@ -176,6 +184,8 @@ export default function JobsPage() {
     setImportMethod('')
     setDateFrom('')
     setDateTo('')
+    setScrapedFrom('')
+    setScrapedTo('')
     setPage(1)
   }
 
@@ -203,7 +213,7 @@ export default function JobsPage() {
           >
             {deletingAll
               ? 'Deleting…'
-              : (search || status || keyword || tag || importMethod || dateFrom || dateTo)
+              : (search || status || keyword || tag || importMethod || dateFrom || dateTo || scrapedFrom || scrapedTo)
                 ? `Delete Filtered (${total})`
                 : `Delete All (${total})`}
           </button>
@@ -260,6 +270,34 @@ export default function JobsPage() {
         <div className="filter-field short">
           <label>Posted to</label>
           <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} />
+        </div>
+        <div className="filter-field" style={{ minWidth: 260 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Scraped
+            {(scrapedFrom || scrapedTo) && (
+              <button
+                onClick={() => { setScrapedFrom(''); setScrapedTo(''); setPage(1) }}
+                style={{ fontSize: 10, padding: '1px 6px', lineHeight: 1.4, color: '#6b7280', borderColor: '#d1d5db', borderRadius: 10 }}
+              >clear</button>
+            )}
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="date"
+              value={scrapedFrom}
+              onChange={e => { setScrapedFrom(e.target.value); setPage(1) }}
+              style={{ flex: 1 }}
+              title="Scraped from"
+            />
+            <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>→</span>
+            <input
+              type="date"
+              value={scrapedTo}
+              onChange={e => { setScrapedTo(e.target.value); setPage(1) }}
+              style={{ flex: 1 }}
+              title="Scraped to"
+            />
+          </div>
         </div>
         <div className="filter-actions">
           <button onClick={reset}>Reset</button>
@@ -323,6 +361,7 @@ export default function JobsPage() {
                   <td>
                     <select
                       className="status-select"
+                      data-status={job.status}
                       value={job.status}
                       onChange={e => handleStatusChange(job, e.target.value)}
                       disabled={savingId === job.id}

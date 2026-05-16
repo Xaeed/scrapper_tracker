@@ -239,6 +239,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           <div className="field">
             <label>Status</label>
             <select
+              className="status-select"
+              data-status={job.status}
               value={job.status}
               onChange={e => setJob({ ...job, status: e.target.value })}
               style={{ maxWidth: 200 }}

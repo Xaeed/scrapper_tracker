@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/requireAdmin'
-import { getManualRunStatus, startManualScraperRun } from '@/lib/scraperManualRun'
+import { getManualRunStatus, startManualScraperRun, stopManualScraperRun } from '@/lib/scraperManualRun'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,4 +22,13 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: result.error, code: result.code }, { status })
   }
   return NextResponse.json({ ok: true, message: 'Scraper run started' })
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdmin(req)
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const result = await stopManualScraperRun()
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+  return NextResponse.json({ ok: true })
 }

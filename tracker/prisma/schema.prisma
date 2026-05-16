@@ -22,6 +22,7 @@ model ScraperConfig {
   excludedCompanies String   @default("[]") // JSON-encoded String[]
   jobTypes          String   @default("[\"F\",\"C\"]") // JSON-encoded String[] — F,C,P,T,I,V
   workplaceTypes    String   @default("[\"1\",\"2\",\"3\"]") // JSON-encoded String[] — 1=onsite,2=remote,3=hybrid
+  timeRange         String   @default("r86400") // LinkedIn f_TPR: r3600,r86400,r604800,r2592000
   updatedAt         DateTime @updatedAt
 }
 
@@ -29,6 +30,7 @@ model ScraperConfig {
 model ScraperRunState {
   id           Int       @id @default(1)
   running      Boolean   @default(false)
+  pid          Int?
   startedAt    DateTime?
   finishedAt   DateTime?
   lastExitCode Int?

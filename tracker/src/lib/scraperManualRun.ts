@@ -55,12 +55,39 @@ export async function getManualRunStatus() {
   return {
     enabled,
     running,
+    pid: row.pid ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
     lastExitCode: row.lastExitCode,
     lastError: row.lastError,
     staleCleared,
   }
+}
+
+export async function stopManualScraperRun(): Promise<{ ok: boolean; error?: string }> {
+  const row = await getState()
+  if (!row.running) return { ok: false, error: 'No run in progress' }
+
+  if (row.pid) {
+    try {
+      process.kill(row.pid, 'SIGTERM')
+    } catch {
+      // Process may have already exited — still clear the DB state
+    }
+  }
+
+  await prisma.scraperRunState.update({
+    where: { id: 1 },
+    data: {
+      running: false,
+      pid: null,
+      finishedAt: new Date(),
+      lastExitCode: -1,
+      lastError: 'Stopped manually.',
+    },
+  })
+
+  return { ok: true }
 }
 
 /**
@@ -95,6 +122,7 @@ export async function startManualScraperRun(): Promise<{ ok: boolean; error?: st
     where: { id: 1 },
     data: {
       running: true,
+      pid: null,
       startedAt,
       finishedAt: null,
       lastError: null,
@@ -109,6 +137,13 @@ export async function startManualScraperRun(): Promise<{ ok: boolean; error?: st
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
   })
+
+  if (child.pid) {
+    await prisma.scraperRunState.update({
+      where: { id: 1 },
+      data: { pid: child.pid },
+    })
+  }
 
   let stderr = ''
   child.stderr?.on('data', chunk => {
@@ -141,6 +176,7 @@ export async function startManualScraperRun(): Promise<{ ok: boolean; error?: st
       where: { id: 1 },
       data: {
         running: false,
+        pid: null,
         finishedAt: new Date(),
         lastExitCode: exitCode,
         lastError: errMsg,

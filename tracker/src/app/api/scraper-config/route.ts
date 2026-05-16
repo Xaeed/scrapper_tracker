@@ -29,6 +29,8 @@ const DEFAULT_LOCATIONS: ConfigItem[] = [
 
 const DEFAULT_JOB_TYPES = ['F', 'C']
 const DEFAULT_WORKPLACE_TYPES = ['1', '2', '3']
+const DEFAULT_TIME_RANGE = 'r86400'
+const VALID_TIME_RANGES = new Set(['r3600', 'r86400', 'r604800', 'r2592000'])
 
 function toItems(raw: unknown): ConfigItem[] {
   if (!Array.isArray(raw)) return []
@@ -53,6 +55,7 @@ async function getOrCreateConfig() {
         excludedCompanies: JSON.stringify([]),
         jobTypes: JSON.stringify(DEFAULT_JOB_TYPES),
         workplaceTypes: JSON.stringify(DEFAULT_WORKPLACE_TYPES),
+        timeRange: DEFAULT_TIME_RANGE,
       },
     })
   }
@@ -79,6 +82,7 @@ async function getOrCreateConfig() {
     excludedCompanies: JSON.parse(row.excludedCompanies) as string[],
     jobTypes: JSON.parse(row.jobTypes) as string[],
     workplaceTypes: JSON.parse(row.workplaceTypes) as string[],
+    timeRange: row.timeRange ?? DEFAULT_TIME_RANGE,
     updatedAt: row.updatedAt,
   }
 }
@@ -96,7 +100,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: { keywords?: unknown; locations?: unknown; excludedCompanies?: unknown; jobTypes?: unknown; workplaceTypes?: unknown }
+  let body: { keywords?: unknown; locations?: unknown; excludedCompanies?: unknown; jobTypes?: unknown; workplaceTypes?: unknown; timeRange?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -127,6 +131,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Must select at least one job type and one workplace type' }, { status: 400 })
   }
 
+  const timeRange = typeof body.timeRange === 'string' && VALID_TIME_RANGES.has(body.timeRange)
+    ? body.timeRange
+    : DEFAULT_TIME_RANGE
+
   const row = await prisma.scraperConfig.upsert({
     where: { id: 1 },
     update: {
@@ -135,6 +143,7 @@ export async function POST(req: NextRequest) {
       excludedCompanies: JSON.stringify(excludedCompanies),
       jobTypes: JSON.stringify(jobTypes),
       workplaceTypes: JSON.stringify(workplaceTypes),
+      timeRange,
     },
     create: {
       id: 1,
@@ -143,6 +152,7 @@ export async function POST(req: NextRequest) {
       excludedCompanies: JSON.stringify(excludedCompanies),
       jobTypes: JSON.stringify(jobTypes),
       workplaceTypes: JSON.stringify(workplaceTypes),
+      timeRange,
     },
   })
 
@@ -152,6 +162,7 @@ export async function POST(req: NextRequest) {
     excludedCompanies: JSON.parse(row.excludedCompanies) as string[],
     jobTypes: JSON.parse(row.jobTypes) as string[],
     workplaceTypes: JSON.parse(row.workplaceTypes) as string[],
+    timeRange: row.timeRange,
     updatedAt: row.updatedAt,
   })
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "ScraperConfig" ADD COLUMN "timeRange" TEXT NOT NULL DEFAULT 'r86400';

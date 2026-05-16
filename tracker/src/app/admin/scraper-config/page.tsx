@@ -10,8 +10,16 @@ interface Config {
   excludedCompanies: string[]
   jobTypes: string[]
   workplaceTypes: string[]
+  timeRange: string
   updatedAt: string
 }
+
+const TIME_RANGE_OPTIONS = [
+  { value: 'r3600',   label: 'Last hour' },
+  { value: 'r86400',  label: 'Last 24 hours (default)' },
+  { value: 'r604800', label: 'Last week' },
+  { value: 'r2592000',label: 'Last month' },
+]
 
 interface ScraperRunApi {
   enabled: boolean
@@ -39,6 +47,7 @@ const WORKPLACE_OPTIONS = [
 export default function ScraperConfigPage() {
   const [runStatus, setRunStatus] = useState<ScraperRunApi | null>(null)
   const [runLoading, setRunLoading] = useState(false)
+  const [stopLoading, setStopLoading] = useState(false)
   const [runMessage, setRunMessage] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
 
@@ -47,6 +56,7 @@ export default function ScraperConfigPage() {
   const [excludedCompanies, setExcludedCompanies] = useState<string[]>([])
   const [jobTypes, setJobTypes] = useState<string[]>(['F', 'C'])
   const [workplaceTypes, setWorkplaceTypes] = useState<string[]>(['1', '2', '3'])
+  const [timeRange, setTimeRange] = useState('r86400')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -66,6 +76,7 @@ export default function ScraperConfigPage() {
         setExcludedCompanies(data.excludedCompanies ?? [])
         setJobTypes(data.jobTypes ?? ['F', 'C'])
         setWorkplaceTypes(data.workplaceTypes ?? ['1', '2', '3'])
+        setTimeRange(data.timeRange ?? 'r86400')
         setUpdatedAt(data.updatedAt)
         setLoading(false)
       })
@@ -85,6 +96,24 @@ export default function ScraperConfigPage() {
     const t = setInterval(pollRun, 3000)
     return () => { cancelled = true; clearInterval(t) }
   }, [])
+
+  async function stopManualRun() {
+    setStopLoading(true)
+    setRunError(null)
+    setRunMessage(null)
+    try {
+      const res = await fetch('/api/admin/scraper', { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setRunError(typeof data.error === 'string' ? data.error : 'Could not stop scraper'); return }
+      setRunMessage('Scraper stopped.')
+      const st = await fetch('/api/admin/scraper', { cache: 'no-store' }).then(r => r.json())
+      setRunStatus(st as ScraperRunApi)
+    } catch {
+      setRunError('Network error')
+    } finally {
+      setStopLoading(false)
+    }
+  }
 
   async function triggerManualRun() {
     setRunLoading(true)
@@ -145,7 +174,7 @@ export default function ScraperConfigPage() {
       const res = await fetch('/api/scraper-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords, locations, excludedCompanies, jobTypes, workplaceTypes }),
+        body: JSON.stringify({ keywords, locations, excludedCompanies, jobTypes, workplaceTypes, timeRange }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -185,12 +214,21 @@ export default function ScraperConfigPage() {
               }} />
               <strong>{runStatus.running ? 'Running…' : 'Idle'}</strong>
             </span>
-            <button type="button" className="btn primary"
-              disabled={runLoading || runStatus.running || !runStatus.enabled}
-              onClick={() => void triggerManualRun()}
-              style={{ marginLeft: 'auto' }}>
-              {runLoading ? 'Starting…' : runStatus.running ? 'Run in progress' : 'Run scraper now'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+              {runStatus.running && (
+                <button type="button"
+                  disabled={stopLoading}
+                  onClick={() => void stopManualRun()}
+                  style={{ background: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' }}>
+                  {stopLoading ? 'Stopping…' : 'Stop run'}
+                </button>
+              )}
+              <button type="button" className="btn primary"
+                disabled={runLoading || runStatus.running || !runStatus.enabled}
+                onClick={() => void triggerManualRun()}>
+                {runLoading ? 'Starting…' : runStatus.running ? 'Run in progress' : 'Run scraper now'}
+              </button>
+            </div>
           </div>
           {!runStatus.enabled && (
             <p style={{ fontSize: 13, color: '#92400e', margin: 0, background: '#fffbeb', padding: 10, borderRadius: 6, border: '1px solid #fcd34d' }}>
@@ -236,8 +274,8 @@ export default function ScraperConfigPage() {
         </div>
       )}
 
-      {/* ── Job Type + Workplace Type ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+      {/* ── Job Type + Workplace Type + Time Range ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginBottom: 24 }}>
         <div className="card">
           <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>Job Type</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -265,6 +303,21 @@ export default function ScraperConfigPage() {
                 </label>
               )
             })}
+          </div>
+        </div>
+
+        <div className="card">
+          <h2 style={{ margin: '0 0 4px', fontSize: 16 }}>Posted Within</h2>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>
+            Default: last 24 hours. Wider ranges increase scrape time significantly.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {TIME_RANGE_OPTIONS.map(({ value, label }) => (
+              <label key={value} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, padding: '6px 12px', borderRadius: 6, border: `1px solid ${timeRange === value ? 'var(--primary)' : 'var(--border)'}`, background: timeRange === value ? '#eff6ff' : 'var(--bg)', color: timeRange === value ? 'var(--primary)' : 'var(--text)', userSelect: 'none' }}>
+                <input type="radio" name="timeRange" value={value} checked={timeRange === value} onChange={() => setTimeRange(value)} style={{ accentColor: 'var(--primary)' }} />
+                {label}
+              </label>
+            ))}
           </div>
         </div>
       </div>

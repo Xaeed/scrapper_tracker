@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
   const importMethod = sp.get('importMethod')?.trim() || ''
   const dateFrom = sp.get('dateFrom') || ''
   const dateTo = sp.get('dateTo') || ''
+  const scrapedFrom = sp.get('scrapedFrom') || ''
+  const scrapedTo = sp.get('scrapedTo') || ''
   const sortBy = VALID_SORT_FIELDS.includes(sp.get('sortBy') || '') ? sp.get('sortBy')! : 'createdAt'
   const sortDir = sp.get('sortDir') === 'asc' ? 'asc' : 'desc'
   const page = Math.max(1, parseInt(sp.get('page') || '1'))
@@ -30,6 +32,8 @@ export async function GET(req: NextRequest) {
     keyword,
     dateFrom,
     dateTo,
+    scrapedFrom: scrapedFrom || undefined,
+    scrapedTo: scrapedTo || undefined,
     tag: tag || undefined,
     importMethod: importMethod || undefined,
     excludedCompanies,
@@ -87,6 +91,8 @@ export async function DELETE(req: NextRequest) {
     keyword: sp.get('searchKeyword')?.trim() || '',
     dateFrom: sp.get('dateFrom') || '',
     dateTo: sp.get('dateTo') || '',
+    scrapedFrom: sp.get('scrapedFrom') || undefined,
+    scrapedTo: sp.get('scrapedTo') || undefined,
     tag: sp.get('tag')?.trim() || undefined,
     importMethod: sp.get('importMethod')?.trim() || undefined,
   })

@@ -6,11 +6,13 @@ export function buildWhere(opts: {
   keyword: string
   dateFrom: string
   dateTo: string
+  scrapedFrom?: string
+  scrapedTo?: string
   tag?: string
   importMethod?: string
   excludedCompanies?: string[]
 }): Prisma.JobWhereInput {
-  const { search, status, keyword, dateFrom, dateTo, tag, importMethod, excludedCompanies } = opts
+  const { search, status, keyword, dateFrom, dateTo, scrapedFrom, scrapedTo, tag, importMethod, excludedCompanies } = opts
   const where: Prisma.JobWhereInput = {}
 
   if (search) {
@@ -41,6 +43,16 @@ export function buildWhere(opts: {
       const end = new Date(dateTo)
       end.setHours(23, 59, 59, 999)
       where.postedAt.lte = end
+    }
+  }
+
+  if (scrapedFrom || scrapedTo) {
+    where.scrapedAt = {}
+    if (scrapedFrom) where.scrapedAt.gte = new Date(scrapedFrom)
+    if (scrapedTo) {
+      const end = new Date(scrapedTo)
+      end.setHours(23, 59, 59, 999)
+      where.scrapedAt.lte = end
     }
   }
 

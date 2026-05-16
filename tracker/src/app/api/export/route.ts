@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     keyword: sp.get('searchKeyword')?.trim() || '',
     dateFrom: sp.get('dateFrom') || '',
     dateTo: sp.get('dateTo') || '',
+    scrapedFrom: sp.get('scrapedFrom') || undefined,
+    scrapedTo: sp.get('scrapedTo') || undefined,
     tag: sp.get('tag')?.trim() || undefined,
     importMethod: sp.get('importMethod')?.trim() || undefined,
   })
