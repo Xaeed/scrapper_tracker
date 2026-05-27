@@ -13,6 +13,25 @@ const scheduleLabels = {
   '0 17 * * *': 'Evening run (5:00 PM)',
 };
 
+function enforceContractRemoteOnly() {
+  const desiredJobTypes = ['C'];
+  const desiredWorkplaceTypes = ['2'];
+  const currentJobTypes = config.linkedInFilters.jobTypes || [];
+  const currentWorkplaceTypes = config.linkedInFilters.workplaceTypes || [];
+
+  const isStrictJobType = currentJobTypes.length === 1 && currentJobTypes[0] === 'C';
+  const isStrictWorkplace = currentWorkplaceTypes.length === 1 && currentWorkplaceTypes[0] === '2';
+
+  if (!isStrictJobType || !isStrictWorkplace) {
+    logger.log(
+      `[agent] Enforcing strict filters: jobTypes=${currentJobTypes.join(',') || '(none)'} -> C, workplaceTypes=${currentWorkplaceTypes.join(',') || '(none)'} -> 2`
+    );
+  }
+
+  config.linkedInFilters.jobTypes = desiredJobTypes;
+  config.linkedInFilters.workplaceTypes = desiredWorkplaceTypes;
+}
+
 // ─── Single Agent Run ────────────────────────────────────────────────────────
 
 async function runAgent(label = 'Manual run') {
@@ -31,8 +50,12 @@ async function runAgent(label = 'Manual run') {
     config.linkedInFilters.timeRange      = remoteConfig.timeRange;
     logger.log(`[agent] Config loaded from tracker: ${remoteConfig.keywords.length} keywords, ${remoteConfig.locations.length} locations, jobTypes=${remoteConfig.jobTypes.join(',')}, workplaceTypes=${remoteConfig.workplaceTypes.join(',')}, timeRange=${remoteConfig.timeRange}`);
   } else {
-    logger.log(`[agent] Using local config: ${config.jobKeywords.length} keywords, ${config.locations.length} locations`);
+    logger.log(`[agent] WARNING: tracker unreachable — using local config: ${config.jobKeywords.length} keywords, ${config.locations.length} locations, jobTypes=${config.linkedInFilters.jobTypes.join(',')}, workplaceTypes=${config.linkedInFilters.workplaceTypes.join(',')}, timeRange=${config.linkedInFilters.timeRange}`);
   }
+  enforceContractRemoteOnly();
+  logger.log(
+    `[agent] Active LinkedIn filters: jobTypes=${config.linkedInFilters.jobTypes.join(',')}, workplaceTypes=${config.linkedInFilters.workplaceTypes.join(',')}, timeRange=${config.linkedInFilters.timeRange}`
+  );
 
   try {
     // Pass pushToTracker as onBatch — saves each search result to tracker immediately

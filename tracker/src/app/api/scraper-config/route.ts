@@ -27,8 +27,8 @@ const DEFAULT_LOCATIONS: ConfigItem[] = [
   'Denmark', 'Norway', 'Austria', 'Belgium', 'Poland', 'Portugal', 'United Kingdom',
 ].map(label => ({ label, enabled: true }))
 
-const DEFAULT_JOB_TYPES = ['F', 'C']
-const DEFAULT_WORKPLACE_TYPES = ['1', '2', '3']
+const DEFAULT_JOB_TYPES = ['C']
+const DEFAULT_WORKPLACE_TYPES = ['2']
 const DEFAULT_TIME_RANGE = 'r86400'
 const VALID_TIME_RANGES = new Set(['r3600', 'r86400', 'r604800', 'r2592000'])
 

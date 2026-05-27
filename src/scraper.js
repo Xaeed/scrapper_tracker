@@ -19,11 +19,34 @@ function randomDelay(range) {
   );
 }
 
+// LinkedIn's URL filters (f_JT / f_WT) are not honoured reliably for public,
+// unauthenticated searches — low-volume queries get padded with off-filter results.
+// These maps drive a post-scrape verification pass against each job's detail page.
+const JOB_TYPE_LABELS = {
+  F: ['full-time', 'full time'],
+  C: ['contract', 'freelance', 'b2b', 'contractor', 'interim'],
+  P: ['part-time', 'part time'],
+  T: ['temporary'],
+  I: ['internship', 'intern'],
+  V: ['volunteer'],
+};
+const WORKPLACE_LABELS = {
+  '1': ['on-site', 'on site', 'onsite'],
+  '2': ['remote'],
+  '3': ['hybrid'],
+};
+
+function matchesLabel(text, allowedCodes, labelMap) {
+  if (!text) return null; // unknown — caller decides
+  const t = text.toLowerCase();
+  return allowedCodes.some(code => (labelMap[code] || []).some(label => t.includes(label)));
+}
+
 function buildSearchUrl(keyword, location) {
   const { jobTypes, workplaceTypes, jobType, workType, timeRange } = config.linkedInFilters;
   // Support both new array fields and legacy single-value fields
-  const jt = (jobTypes && jobTypes.length ? jobTypes : jobType ? [jobType] : ['F', 'C']).join(',');
-  const wt = (workplaceTypes && workplaceTypes.length ? workplaceTypes : workType ? [workType] : ['1', '2', '3']).join(',');
+  const jt = (jobTypes && jobTypes.length ? jobTypes : jobType ? [jobType] : ['C']).join(',');
+  const wt = (workplaceTypes && workplaceTypes.length ? workplaceTypes : workType ? [workType] : ['2']).join(',');
   const params = new URLSearchParams({
     keywords: keyword,
     location: location,
@@ -143,6 +166,40 @@ async function scrollToLoadJobs(page) {
   }
 }
 
+// ─── Fetch Job Detail Page (for type/workplace verification) ────────────────
+
+async function fetchJobDetails(page, jobId) {
+  try {
+    await page.goto(`https://www.linkedin.com/jobs/view/${jobId}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    });
+    await page
+      .waitForSelector('.description__job-criteria-list, .top-card-layout__entity-info', { timeout: 8000 })
+      .catch(() => {});
+
+    return await page.evaluate(() => {
+      const result = { employmentType: '', workplaceType: '' };
+      document.querySelectorAll('.description__job-criteria-item').forEach(item => {
+        const header = item.querySelector('.description__job-criteria-subheader')?.textContent?.trim().toLowerCase() || '';
+        const value = item.querySelector('.description__job-criteria-text')?.textContent?.trim().toLowerCase() || '';
+        if (header.includes('employment type')) result.employmentType = value;
+        if (header.includes('workplace')) result.workplaceType = value;
+      });
+      // Workplace is often shown as a pill in the top card instead of the criteria list.
+      if (!result.workplaceType) {
+        const top = document.querySelector('.top-card-layout__entity-info')?.textContent?.toLowerCase() || '';
+        if (top.includes('remote')) result.workplaceType = 'remote';
+        else if (top.includes('hybrid')) result.workplaceType = 'hybrid';
+        else if (top.includes('on-site') || top.includes('on site')) result.workplaceType = 'on-site';
+      }
+      return result;
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Scrape Single Search Query ─────────────────────────────────────────────
 
 async function scrapeSearch(context, keyword, location) {
@@ -193,7 +250,50 @@ async function scrapeSearch(context, keyword, location) {
       process.env.SCRAPER_DEBUG = 'done'; // only screenshot once
     }
 
-    jobs.push(...companyFiltered);
+    // Verify each remaining job by reading its detail page. LinkedIn's URL filter
+    // pads results with off-filter jobs for low-volume queries, so we re-check.
+    // Skipped if the configured filter is fully permissive (matches everything).
+    const allowedJobTypes = config.linkedInFilters.jobTypes || [];
+    const allowedWorkplaces = config.linkedInFilters.workplaceTypes || [];
+    const filterIsPermissive =
+      allowedJobTypes.length >= 5 && allowedWorkplaces.length >= 3;
+
+    if (companyFiltered.length > 0 && !filterIsPermissive) {
+      const detailPage = await context.newPage();
+      let droppedType = 0, droppedWorkplace = 0, droppedUnknown = 0;
+      const verified = [];
+      try {
+        for (const job of companyFiltered) {
+          const details = await fetchJobDetails(detailPage, job.id);
+          if (!details) { droppedUnknown++; continue; }
+
+          const typeOk = matchesLabel(details.employmentType, allowedJobTypes, JOB_TYPE_LABELS);
+          const wpOk   = matchesLabel(details.workplaceType, allowedWorkplaces, WORKPLACE_LABELS);
+
+          // Be strict on employment type (LinkedIn always shows it). Be lenient
+          // on workplace (often missing from public view) — only drop on explicit mismatch.
+          if (typeOk === false) { droppedType++; continue; }
+          if (typeOk === null)  { droppedUnknown++; continue; }
+          if (wpOk === false)   { droppedWorkplace++; continue; }
+
+          verified.push({
+            ...job,
+            employmentType: details.employmentType,
+            workplaceType: details.workplaceType,
+          });
+
+          await randomDelay({ min: 500, max: 1500 });
+        }
+      } finally {
+        await detailPage.close();
+      }
+      if (droppedType + droppedWorkplace + droppedUnknown > 0) {
+        console.log(`  [verify] dropped: type=${droppedType}, workplace=${droppedWorkplace}, unknown=${droppedUnknown} — kept ${verified.length}/${companyFiltered.length}`);
+      }
+      jobs.push(...verified);
+    } else {
+      jobs.push(...companyFiltered);
+    }
   } catch (err) {
     console.error(`  [scraper] Error on "${keyword}" / ${location}: ${err.message}`);
   } finally {

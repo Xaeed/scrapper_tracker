@@ -106,8 +106,8 @@ async function fetchRemoteConfig() {
         keywords: toActive(data.keywords),
         locations: toActive(data.locations),
         excludedCompanies: Array.isArray(data.excludedCompanies) ? data.excludedCompanies : [],
-        jobTypes: Array.isArray(data.jobTypes) && data.jobTypes.length ? data.jobTypes : ['F', 'C'],
-        workplaceTypes: Array.isArray(data.workplaceTypes) && data.workplaceTypes.length ? data.workplaceTypes : ['1', '2', '3'],
+        jobTypes: Array.isArray(data.jobTypes) && data.jobTypes.length ? data.jobTypes : ['C'],
+        workplaceTypes: Array.isArray(data.workplaceTypes) && data.workplaceTypes.length ? data.workplaceTypes : ['2'],
         timeRange: typeof data.timeRange === 'string' && data.timeRange ? data.timeRange : 'r86400',
       };
     }

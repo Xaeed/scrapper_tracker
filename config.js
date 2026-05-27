@@ -46,9 +46,11 @@ module.exports = {
   // f_WT  → Workplace:     1=On-site, 2=Remote, 3=Hybrid
   // f_TPR → Time range:    r86400=last 24h
   // These defaults are overridden at runtime by the tracker DB config when TRACKER_URL is set.
+  // Fail-closed defaults: when the tracker is unreachable we'd rather scrape
+  // too narrowly than save Full-time jobs the user never wanted.
   linkedInFilters: {
-    jobTypes: ['F', 'C'],         // Full-time + Contract
-    workplaceTypes: ['1', '2', '3'], // On-site + Remote + Hybrid
+    jobTypes: ['C'],         // Contract only
+    workplaceTypes: ['2'],   // Remote only
     timeRange: 'r86400',
   },
 
