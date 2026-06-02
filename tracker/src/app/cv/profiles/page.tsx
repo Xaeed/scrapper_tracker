@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 
 interface SampleCvMeta {
   fileName: string
@@ -9,13 +9,57 @@ interface SampleCvMeta {
   updatedAt: string
 }
 
-interface ProfileRow {
+interface ProfileContact {
+  linkedinUrl: string | null
+  linkedinPassword?: string | null
+  linkedinEmail: string | null
+  address: string | null
+  phone: string | null
+}
+
+interface ProfileRow extends ProfileContact {
   id: string
   name: string
   fileName: string
   mimeType: string
   hasPdf: boolean
+  hasLinkedinPassword?: boolean
   createdAt: string
+}
+
+type ContactDraft = {
+  linkedinUrl: string
+  linkedinPassword: string
+  linkedinEmail: string
+  address: string
+  phone: string
+}
+
+const emptyContactDraft = (): ContactDraft => ({
+  linkedinUrl: '',
+  linkedinPassword: '',
+  linkedinEmail: '',
+  address: '',
+  phone: '',
+})
+
+function contactFromProfile(p: ProfileContact): ContactDraft {
+  return {
+    linkedinUrl: p.linkedinUrl ?? '',
+    linkedinPassword: p.linkedinPassword ?? '',
+    linkedinEmail: p.linkedinEmail ?? '',
+    address: p.address ?? '',
+    phone: p.phone ?? '',
+  }
+}
+
+const inputStyle: React.CSSProperties = {
+  maxWidth: 360,
+  width: '100%',
+  padding: '8px 10px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  fontSize: 13,
 }
 
 export default function CvProfilesPage() {
@@ -29,11 +73,16 @@ export default function CvProfilesPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([])
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [name, setName] = useState('')
+  const [contact, setContact] = useState<ContactDraft>(emptyContactDraft)
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editContact, setEditContact] = useState<ContactDraft>(emptyContactDraft)
+  const [editSaving, setEditSaving] = useState(false)
 
   const isPdf = !!file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))
 
@@ -96,6 +145,11 @@ export default function CvProfilesPage() {
     const form = new FormData()
     form.append('name', name.trim())
     form.append('file', file)
+    if (contact.linkedinUrl.trim()) form.append('linkedinUrl', contact.linkedinUrl.trim())
+    if (contact.linkedinPassword.trim()) form.append('linkedinPassword', contact.linkedinPassword.trim())
+    if (contact.linkedinEmail.trim()) form.append('linkedinEmail', contact.linkedinEmail.trim())
+    if (contact.address.trim()) form.append('address', contact.address.trim())
+    if (contact.phone.trim()) form.append('phone', contact.phone.trim())
     const res = await fetch('/api/cv-profiles', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
@@ -103,7 +157,53 @@ export default function CvProfilesPage() {
     const label = data.source === 'pdf-converted' ? ' (PDF converted to HTML)' : ''
     setSuccess(`Profile "${data.name || name.trim()}" saved${label}.`)
     setName('')
+    setContact(emptyContactDraft())
     setFile(null)
+    loadProfiles()
+  }
+
+  function startEdit(p: ProfileRow) {
+    setEditingId(p.id)
+    setEditName(p.name)
+    setEditContact(contactFromProfile(p))
+    setError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditName('')
+    setEditContact(emptyContactDraft())
+  }
+
+  async function handleEditSave(p: ProfileRow) {
+    setError(null)
+    setSuccess(null)
+    const trimmedName = editName.trim()
+    if (!trimmedName) {
+      setError('Profile name is required.')
+      return
+    }
+    setEditSaving(true)
+    const res = await fetch(`/api/cv-profiles/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: trimmedName,
+        linkedinUrl: editContact.linkedinUrl.trim() || null,
+        linkedinPassword: editContact.linkedinPassword.trim() || null,
+        linkedinEmail: editContact.linkedinEmail.trim() || null,
+        address: editContact.address.trim() || null,
+        phone: editContact.phone.trim() || null,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setEditSaving(false)
+    if (!res.ok) {
+      setError(typeof data.error === 'string' ? data.error : 'Failed to update profile')
+      return
+    }
+    setSuccess(`Profile "${data.name || trimmedName}" updated.`)
+    cancelEdit()
     loadProfiles()
   }
 
@@ -206,9 +306,10 @@ export default function CvProfilesPage() {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Backend Senior"
-              style={{ maxWidth: 360, width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}
+              style={inputStyle}
             />
           </div>
+          <ProfileContactFields contact={contact} onChange={setContact} />
           <div className="field" style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>CV file (HTML or PDF)</label>
             <input
@@ -250,6 +351,8 @@ export default function CvProfilesPage() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>LinkedIn</th>
+                  <th>Contact</th>
                   <th>File</th>
                   <th>Added</th>
                   <th></th>
@@ -257,43 +360,96 @@ export default function CvProfilesPage() {
               </thead>
               <tbody>
                 {profiles.map(p => (
-                  <tr key={p.id}>
-                    <td style={{ fontWeight: 500 }}>{p.name}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{p.fileName}</td>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
-                      {new Date(p.createdAt).toLocaleDateString('en-GB')}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <a
-                        href={`/api/cv-profiles/${p.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn"
-                        style={{ fontSize: 12, padding: '4px 10px' }}
-                      >
-                        View HTML
-                      </a>
-                      {p.hasPdf && (
+                  <Fragment key={p.id}>
+                    <tr>
+                      <td style={{ fontWeight: 500 }}>{p.name}</td>
+                      <td style={{ fontSize: 13, maxWidth: 200 }}>
+                        {p.linkedinUrl ? (
+                          <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                            Profile
+                          </a>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                        {p.hasLinkedinPassword && (
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Password saved
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 220 }}>
+                        {[p.linkedinEmail, p.phone, p.address].filter(Boolean).join(' · ') || '—'}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{p.fileName}</td>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                        {new Date(p.createdAt).toLocaleDateString('en-GB')}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => (editingId === p.id ? cancelEdit() : startEdit(p))}
+                          className="btn"
+                          style={{ fontSize: 12, padding: '4px 10px' }}
+                        >
+                          {editingId === p.id ? 'Cancel' : 'Edit'}
+                        </button>
                         <a
-                          href={`/api/cv-profiles/${p.id}/pdf`}
+                          href={`/api/cv-profiles/${p.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn"
                           style={{ fontSize: 12, padding: '4px 10px', marginLeft: 6 }}
                         >
-                          Source PDF
+                          View HTML
                         </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(p)}
-                        disabled={deletingId === p.id}
-                        style={{ fontSize: 12, padding: '4px 10px', color: '#991b1b', borderColor: '#fecaca', marginLeft: 6 }}
-                      >
-                        {deletingId === p.id ? '…' : 'Delete'}
-                      </button>
-                    </td>
-                  </tr>
+                        {p.hasPdf && (
+                          <a
+                            href={`/api/cv-profiles/${p.id}/pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn"
+                            style={{ fontSize: 12, padding: '4px 10px', marginLeft: 6 }}
+                          >
+                            Source PDF
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p)}
+                          disabled={deletingId === p.id}
+                          style={{ fontSize: 12, padding: '4px 10px', color: '#991b1b', borderColor: '#fecaca', marginLeft: 6 }}
+                        >
+                          {deletingId === p.id ? '…' : 'Delete'}
+                        </button>
+                      </td>
+                    </tr>
+                    {editingId === p.id && (
+                      <tr>
+                        <td colSpan={6} style={{ background: 'var(--bg-muted, #f8fafc)', padding: 16 }}>
+                          <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>Edit profile</h3>
+                          <div className="field" style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Profile name</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <ProfileContactFields contact={editContact} onChange={setEditContact} />
+                          <button
+                            type="button"
+                            className="btn primary"
+                            disabled={editSaving}
+                            onClick={() => handleEditSave(p)}
+                            style={{ marginTop: 8 }}
+                          >
+                            {editSaving ? 'Saving…' : 'Save changes'}
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -301,5 +457,76 @@ export default function CvProfilesPage() {
         )}
       </div>
     </>
+  )
+}
+
+function ProfileContactFields({
+  contact,
+  onChange,
+}: {
+  contact: ContactDraft
+  onChange: (next: ContactDraft) => void
+}) {
+  const set = (key: keyof ContactDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    onChange({ ...contact, [key]: e.target.value })
+
+  return (
+    <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
+      <div className="field">
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>LinkedIn profile URL</label>
+        <input
+          type="url"
+          value={contact.linkedinUrl}
+          onChange={set('linkedinUrl')}
+          placeholder="https://www.linkedin.com/in/…"
+          style={inputStyle}
+        />
+      </div>
+      <div className="field">
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+          LinkedIn password <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span>
+        </label>
+        <input
+          type="password"
+          value={contact.linkedinPassword}
+          onChange={set('linkedinPassword')}
+          placeholder="Account password"
+          autoComplete="new-password"
+          style={inputStyle}
+        />
+      </div>
+      <div className="field">
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+          LinkedIn email <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span>
+        </label>
+        <input
+          type="email"
+          value={contact.linkedinEmail}
+          onChange={set('linkedinEmail')}
+          placeholder="name@example.com"
+          style={inputStyle}
+        />
+      </div>
+      <div className="field">
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Phone</label>
+        <input
+          type="tel"
+          value={contact.phone}
+          onChange={set('phone')}
+          placeholder="+44 …"
+          style={inputStyle}
+        />
+      </div>
+      <div className="field">
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Address</label>
+        <textarea
+          value={contact.address}
+          onChange={set('address')}
+          placeholder="City, country"
+          rows={2}
+          style={{ ...inputStyle, maxWidth: 480, resize: 'vertical' }}
+        />
+      </div>
+    </div>
   )
 }

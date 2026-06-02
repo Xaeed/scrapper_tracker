@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  CV_PROFILE_CONTACT_SELECT,
+  parseContactFromFormData,
+  validateCvProfileContact,
+} from '@/lib/cvProfileContact'
 import { isHtmlCvContent } from '@/lib/cvProfileValidation'
 import { requireAdmin } from '@/lib/requireAdmin'
 import { requireAuth } from '@/lib/requireAuth'
@@ -13,11 +18,29 @@ export async function GET(req: NextRequest) {
   const session = await requireAuth(req)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const isAdmin = session.role === 'admin'
   const rows = await prisma.cvProfile.findMany({
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, fileName: true, mimeType: true, createdAt: true, updatedAt: true, pdfName: true },
+    select: {
+      id: true,
+      name: true,
+      fileName: true,
+      mimeType: true,
+      createdAt: true,
+      updatedAt: true,
+      pdfName: true,
+      ...CV_PROFILE_CONTACT_SELECT,
+      ...(isAdmin ? { linkedinPassword: true } : {}),
+    },
   })
-  const profiles = rows.map(r => ({ ...r, hasPdf: !!r.pdfName }))
+  const profiles = rows.map(r => {
+    const hasLinkedinPassword = !!r.linkedinPassword
+    if (isAdmin) {
+      return { ...r, hasPdf: !!r.pdfName, hasLinkedinPassword }
+    }
+    const { linkedinPassword: _pw, ...rest } = r as typeof r & { linkedinPassword?: string | null }
+    return { ...rest, hasPdf: !!r.pdfName, hasLinkedinPassword }
+  })
   return NextResponse.json({ profiles })
 }
 
@@ -35,6 +58,10 @@ export async function POST(req: NextRequest) {
   const nameRaw = formData.get('name')
   const name = typeof nameRaw === 'string' ? nameRaw.trim() : ''
   if (!name) return NextResponse.json({ error: 'Profile name is required' }, { status: 400 })
+
+  const contact = parseContactFromFormData(formData)
+  const contactError = validateCvProfileContact(contact)
+  if (contactError) return NextResponse.json({ error: contactError }, { status: 400 })
 
   const file = formData.get('file') as File | null
   if (!file || !(file instanceof File) || file.size === 0) {
@@ -138,8 +165,16 @@ export async function POST(req: NextRequest) {
           mimeType: 'text/html',
           pdfName: file.name,
           pdfData: pdfBase64,
+          ...contact,
         },
-        select: { id: true, name: true, fileName: true, mimeType: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          fileName: true,
+          mimeType: true,
+          createdAt: true,
+          ...CV_PROFILE_CONTACT_SELECT,
+        },
       })
       return NextResponse.json({ ...created, source: 'pdf-converted' }, { status: 201 })
     } catch (e) {
@@ -171,8 +206,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const created = await prisma.cvProfile.create({
-      data: { name, fileName: file.name || 'cv.html', fileData: base64, mimeType: mime },
-      select: { id: true, name: true, fileName: true, mimeType: true, createdAt: true },
+      data: { name, fileName: file.name || 'cv.html', fileData: base64, mimeType: mime, ...contact },
+      select: {
+        id: true,
+        name: true,
+        fileName: true,
+        mimeType: true,
+        createdAt: true,
+        ...CV_PROFILE_CONTACT_SELECT,
+      },
     })
     return NextResponse.json(created, { status: 201 })
   } catch (e) {
