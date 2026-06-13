@@ -50,6 +50,24 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     allowed.tags = stringifyTags(normalizeTagList(body.tags.map((x: unknown) => String(x))))
   }
 
+  if ('appliedProfiles' in body) {
+    if (!Array.isArray(body.appliedProfiles)) {
+      return NextResponse.json(
+        { error: 'appliedProfiles must be an array' },
+        { status: 400 }
+      )
+    }
+    const normalized: { key: string; name: string }[] = []
+    for (const p of body.appliedProfiles as unknown[]) {
+      if (!p || typeof p !== 'object') continue
+      const o = p as Record<string, unknown>
+      const key = typeof o.key === 'string' ? o.key.trim() : ''
+      const name = typeof o.name === 'string' ? o.name.trim() : ''
+      if (key && name) normalized.push({ key, name })
+    }
+    allowed.appliedProfiles = JSON.stringify(normalized)
+  }
+
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }

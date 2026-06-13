@@ -77,12 +77,30 @@ model Job {
   status         String    @default("NEW")
   description    String?
   notes          String?
-  cvHtml         String?
+  cvHtml         String? // legacy single generated CV (superseded by JobCv per-profile CVs)
   attachmentName String?
   attachmentData String?
   attachmentType String?
   importMethod   String    @default("scraped") // scraped | manual
   tags           String    @default("[]") // JSON-encoded String[] (normalized lowercase)
+  appliedProfiles String   @default("[]") // JSON-encoded {key,name}[] — profiles applied with
+  cvs            JobCv[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// One generated CV per (job, profile). Re-generating a profile upserts its row.
+model JobCv {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cvProfileId String? // CvProfile.id; null for built-in devops/backend
+  profileKey  String // 'devops' | 'backend' | <CvProfile.id> — stable identity
+  profileName String // display label, e.g. 'DevOps' or the CvProfile name
+  cvHtml      String
+  fileName    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([jobId, profileKey])
 }

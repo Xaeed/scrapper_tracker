@@ -23,9 +23,35 @@ interface Job {
   attachmentType: string | null
   importMethod?: string
   tags?: string
+  appliedProfiles?: string
   createdAt: string
   updatedAt: string
 }
+
+interface JobCvMeta {
+  id: string
+  profileKey: string
+  profileName: string
+  cvProfileId: string | null
+  fileName: string | null
+  createdAt: string
+}
+
+interface AppliedProfile {
+  key: string
+  name: string
+}
+
+interface ProfileOption {
+  key: string
+  name: string
+  builtin: boolean
+}
+
+const BUILTIN_PROFILES: ProfileOption[] = [
+  { key: 'devops', name: 'DevOps', builtin: true },
+  { key: 'backend', name: 'Backend', builtin: true },
+]
 
 const STATUSES = ['NEW', 'VIEWED', 'READY', 'APPLIED', 'REJECTED', 'NOT_INTERESTED']
 
@@ -50,6 +76,11 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [removingAttachment, setRemovingAttachment] = useState(false)
   const [deletingCv, setDeletingCv] = useState(false)
   const [tagsInput, setTagsInput] = useState('')
+  const [jobCvs, setJobCvs] = useState<JobCvMeta[]>([])
+  const [previewCvId, setPreviewCvId] = useState<string | null>(null)
+  const [deletingCvId, setDeletingCvId] = useState<string | null>(null)
+  const [savedProfiles, setSavedProfiles] = useState<ProfileOption[]>([])
+  const [applied, setApplied] = useState<AppliedProfile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -64,10 +95,39 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           } catch {
             setTagsInput('')
           }
+          try {
+            const arr = JSON.parse(data.appliedProfiles || '[]') as unknown
+            setApplied(
+              Array.isArray(arr)
+                ? arr
+                    .filter((p): p is AppliedProfile => !!p && typeof p === 'object' && 'key' in p && 'name' in p)
+                    .map(p => ({ key: String(p.key), name: String(p.name) }))
+                : []
+            )
+          } catch {
+            setApplied([])
+          }
         }
       })
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    fetch(`/api/jobs/${id}/cvs`)
+      .then(r => r.json())
+      .then(data => setJobCvs(Array.isArray(data.cvs) ? data.cvs : []))
+      .catch(() => {})
+  }, [id])
+
+  useEffect(() => {
+    fetch('/api/cv-profiles')
+      .then(r => r.json())
+      .then(data => {
+        const list = Array.isArray(data.profiles) ? data.profiles : []
+        setSavedProfiles(list.map((p: { id: string; name: string }) => ({ key: p.id, name: p.name, builtin: false })))
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleDelete() {
     if (!job) return
@@ -92,6 +152,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         notes: job.notes,
         description: job.description,
         tags: tagList,
+        appliedProfiles: applied,
       }),
     })
     const data = await res.json().catch(() => null)
@@ -139,6 +200,25 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     setDeletingCv(false)
   }
 
+  async function handleDeleteJobCv(cv: JobCvMeta) {
+    if (!confirm(`Delete the "${cv.profileName}" CV for this job?`)) return
+    setDeletingCvId(cv.id)
+    const res = await fetch(`/api/jobs/${id}/cvs/${cv.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setJobCvs(prev => prev.filter(c => c.id !== cv.id))
+      setPreviewCvId(prev => (prev === cv.id ? null : prev))
+    }
+    setDeletingCvId(null)
+  }
+
+  function toggleApplied(opt: ProfileOption) {
+    setApplied(prev =>
+      prev.some(a => a.key === opt.key)
+        ? prev.filter(a => a.key !== opt.key)
+        : [...prev, { key: opt.key, name: opt.name }]
+    )
+  }
+
   async function handleRemoveAttachment() {
     if (!confirm('Remove this attachment?')) return
     setRemovingAttachment(true)
@@ -155,6 +235,15 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     </>
   )
   if (!job) return null
+
+  // Union of all selectable profiles + any applied profile whose source no longer exists.
+  const appliedOptions: ProfileOption[] = [
+    ...BUILTIN_PROFILES,
+    ...savedProfiles,
+    ...applied
+      .filter(a => ![...BUILTIN_PROFILES, ...savedProfiles].some(o => o.key === a.key))
+      .map(a => ({ key: a.key, name: a.name, builtin: false })),
+  ]
 
   return (
     <>
@@ -249,6 +338,36 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             </select>
           </div>
           <div className="field">
+            <label>Applied with profiles</label>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '8px 10px',
+              }}
+            >
+              {appliedOptions.map(opt => (
+                <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={applied.some(a => a.key === opt.key)}
+                    onChange={() => toggleApplied(opt)}
+                  />
+                  <span>
+                    {opt.name}
+                    {opt.builtin && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · built-in</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Tick every profile you applied to this job with. Saved with the Save button below.
+            </p>
+          </div>
+          <div className="field">
             <label>Tags</label>
             <input
               type="text"
@@ -291,68 +410,122 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       <div className="card">
         <h2>CV &amp; Attachments</h2>
 
-        {/* Generated CV row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, minWidth: 120, color: 'var(--text-muted)' }}>Generated CV</span>
-          {job.cvHtml ? (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <a
-                href={`/api/jobs/${id}/cv`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn primary"
-                style={{ fontSize: 12, padding: '4px 12px' }}
-              >
-                View CV ↗
-              </a>
-              <a
-                href={`/api/jobs/${id}/cv`}
-                download={`cv-${job.title.replace(/\s+/g, '-').toLowerCase()}.html`}
-                className="btn"
-                style={{ fontSize: 12, padding: '4px 12px' }}
-              >
-                Download
-              </a>
-              <button
-                onClick={() => setShowCvPreview(p => !p)}
-                className="btn"
-                style={{ fontSize: 12, padding: '4px 12px' }}
-              >
-                {showCvPreview ? 'Hide Preview' : 'Preview'}
-              </button>
-              <button
-                onClick={handleDeleteCv}
-                disabled={deletingCv}
-                style={{ fontSize: 12, padding: '4px 10px', color: '#991b1b', borderColor: '#fecaca' }}
-              >
-                {deletingCv ? '…' : 'Delete CV'}
-              </button>
-            </div>
+        {/* Generated CVs — one per profile */}
+        <div style={{ paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: jobCvs.length ? 12 : 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 500, minWidth: 120, color: 'var(--text-muted)' }}>Generated CVs</span>
+            <a
+              href={`/cv?jobId=${id}&title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn"
+              style={{ fontSize: 12, padding: '4px 12px' }}
+            >
+              {jobCvs.length ? 'Generate more ↗' : 'Create CVs ↗'}
+            </a>
+          </div>
+
+          {jobCvs.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+              No profile CVs yet — generate one or more above.
+            </p>
           ) : (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              No CV yet —{' '}
-              <a
-                href={`/cv?jobId=${id}&title=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: 'var(--primary)' }}
-              >
-                Create one ↗
-              </a>
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {jobCvs.map(cv => (
+                <div key={cv.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, minWidth: 160 }}>{cv.profileName}</span>
+                    <a
+                      href={`/api/jobs/${id}/cvs/${cv.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn primary"
+                      style={{ fontSize: 12, padding: '4px 12px' }}
+                    >
+                      View ↗
+                    </a>
+                    <a
+                      href={`/api/jobs/${id}/cvs/${cv.id}`}
+                      download={cv.fileName || `cv-${cv.profileName.replace(/\s+/g, '-').toLowerCase()}.html`}
+                      className="btn"
+                      style={{ fontSize: 12, padding: '4px 12px' }}
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={() => setPreviewCvId(prev => (prev === cv.id ? null : cv.id))}
+                      className="btn"
+                      style={{ fontSize: 12, padding: '4px 12px' }}
+                    >
+                      {previewCvId === cv.id ? 'Hide Preview' : 'Preview'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteJobCv(cv)}
+                      disabled={deletingCvId === cv.id}
+                      style={{ fontSize: 12, padding: '4px 10px', color: '#991b1b', borderColor: '#fecaca' }}
+                    >
+                      {deletingCvId === cv.id ? '…' : 'Delete'}
+                    </button>
+                  </div>
+                  {previewCvId === cv.id && (
+                    <iframe
+                      src={`/api/jobs/${id}/cvs/${cv.id}`}
+                      style={{ width: '100%', height: 780, border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginTop: 10 }}
+                      title={`CV Preview — ${cv.profileName}`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Legacy single CV (pre-dates per-profile CVs) */}
+          {job.cvHtml && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, minWidth: 160, color: 'var(--text-muted)' }}>Legacy CV</span>
+                <a
+                  href={`/api/jobs/${id}/cv`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                >
+                  View ↗
+                </a>
+                <a
+                  href={`/api/jobs/${id}/cv`}
+                  download={`cv-${job.title.replace(/\s+/g, '-').toLowerCase()}.html`}
+                  className="btn"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => setShowCvPreview(p => !p)}
+                  className="btn"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                >
+                  {showCvPreview ? 'Hide Preview' : 'Preview'}
+                </button>
+                <button
+                  onClick={handleDeleteCv}
+                  disabled={deletingCv}
+                  style={{ fontSize: 12, padding: '4px 10px', color: '#991b1b', borderColor: '#fecaca' }}
+                >
+                  {deletingCv ? '…' : 'Delete'}
+                </button>
+              </div>
+              {showCvPreview && (
+                <iframe
+                  src={`/api/jobs/${id}/cv`}
+                  style={{ width: '100%', height: 780, border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginTop: 10 }}
+                  title="Legacy CV Preview"
+                />
+              )}
+            </div>
           )}
         </div>
-
-        {/* Inline CV preview (toggle) */}
-        {showCvPreview && job.cvHtml && (
-          <div style={{ marginBottom: 16 }}>
-            <iframe
-              src={`/api/jobs/${id}/cv`}
-              style={{ width: '100%', height: 780, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
-              title="CV Preview"
-            />
-          </div>
-        )}
 
         {/* Manual attachment row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
